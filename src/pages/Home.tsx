@@ -86,6 +86,15 @@ export default function Home() {
           >
             Start demo
           </button>
+
+          <div className="text-center">
+            <a
+              href="/dashboard"
+              className="text-sm text-slate-500 hover:text-blue-600 underline underline-offset-2 transition-colors"
+            >
+              View workflow story dashboard
+            </a>
+          </div>
         </div>
       </div>
     </div>
