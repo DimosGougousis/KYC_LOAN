@@ -261,4 +261,62 @@ export const handlers = [
     }
     return HttpResponse.json({ reviews: [] });
   }),
+
+  // --- HITL Review Details ---
+  http.get('/workflow/wf-current/review/:reviewId', ({ params }) => {
+    const { reviewId } = params;
+
+    if (reviewId === 'rev-alex-001') {
+      return HttpResponse.json({
+        reviewId,
+        type: 'compliance',
+        applicantName: 'Alex Petrov',
+        dob: '1980-02-20',
+        nationality: 'RU',
+        idDocuments: [{ type: 'passport', number: 'P-****7892', verified: true }],
+        watchlistMatches: [{
+          list: 'PEP',
+          similarity: 0.87,
+          matchName: 'Alexei Petrov',
+          jurisdiction: 'RU',
+          role: 'Former Regional Official',
+        }],
+        riskBreakdown: {
+          pep: { score: 72, label: 'PEP Screening', description: 'Name matched a Politically Exposed Person record at 87% confidence.', sourceName: 'World-Check PEP Database', sourceUrl: '/audit/pep-scan/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
+          sanctions: { score: 0, label: 'Sanctions Screening', description: 'No matches found against UN, EU, OFAC, or UK sanctions lists.', sourceName: 'Consolidated Sanctions List', sourceUrl: '/audit/sanctions-scan/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
+          adverseMedia: { score: 15, label: 'Adverse Media', description: 'One local news article from 2023 mentions the applicant.', sourceName: 'LexisNexis Adverse Media', sourceUrl: '/audit/media-scan/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
+          aml: { score: 30, label: 'AML Risk Factors', description: 'Recent deposits totalling €28,000 across 3 transactions.', sourceName: 'Transaction Monitoring System', sourceUrl: '/audit/aml-txn/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
+        },
+        slaDeadline: new Date(Date.now() + 14400000).toISOString(),
+      });
+    }
+
+    if (reviewId === 'rev-sarah-001') {
+      return HttpResponse.json({
+        reviewId,
+        type: 'underwriting',
+        applicantName: 'Sarah Miller',
+        loanRequest: { amount: 15000, term: 36, purpose: 'home-improvement' },
+        creditReport: { score: 621, bureau: 'Experian', factors: ['Short credit history', 'High utilisation on card ending 4521'] },
+        income: { annual: 42000, verified: true },
+        dti: 0.38,
+        monthlyDebt: 1300,
+        monthlyIncome: 3500,
+        modelOutput: { decision: 'borderline', pd: 0.042, lgd: 0.55, recommendation: 'Counter-offer or manual approve' },
+      });
+    }
+
+    return HttpResponse.json({ error: 'Review not found' }, { status: 404 });
+  }),
+
+  // --- HITL Review Decision ---
+  http.post('/workflow/wf-current/review/:reviewId/decision', async ({ request }) => {
+    const body = await request.json() as any;
+    return HttpResponse.json({
+      reviewId: body.counterOffer ? 'counter-offer' : 'rev',
+      outcome: body.decision,
+      recordedAt: new Date().toISOString(),
+      workflowAdvanced: true,
+    });
+  }),
 ];
