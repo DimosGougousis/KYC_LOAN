@@ -1,5 +1,45 @@
 export type OutcomeColor = 'green' | 'red' | 'blue' | 'amber';
 
+export type AuditOutcome = 'pass' | 'fail' | 'escalated' | 'approved' | 'declined' | 'info';
+
+export interface AuditEvent {
+  timestamp: string;
+  actor: 'System' | 'Applicant' | 'Compliance Officer' | 'Underwriter';
+  event: string;
+  outcome: AuditOutcome;
+}
+
+export interface PassportDocument {
+  id: string;
+  name: string;
+  status: 'verified' | 'rejected' | 'resubmitted' | 'generated' | 'pending';
+}
+
+export interface DecisionSummary {
+  outcome: 'approved' | 'declined' | 'counter-offer' | 'under-review';
+  decidedAt: string;
+  decidedBy: string;
+  amount?: number;
+  offeredAmount?: number;
+  rate?: number;
+  termMonths?: number;
+  monthlyPayment?: number;
+  reasons?: string[];
+  conditions?: string[];
+}
+
+export interface ApplicationPassportData {
+  applicationId: string;
+  submittedAt: string;
+  applicantName: string;
+  product: string;
+  requestedAmount: number;
+  status: 'approved' | 'declined' | 'counter-offer' | 'under-review';
+  auditTrail: AuditEvent[];
+  documents: PassportDocument[];
+  decision: DecisionSummary;
+}
+
 export interface Moment {
   context: string;
   trigger: string;
@@ -23,6 +63,7 @@ export interface PersonaScript {
   outcomeColor: OutcomeColor;
   outcomeLabel: string;
   steps: StepScript[];
+  passport: ApplicationPassportData;
 }
 
 const COMMON_PERSONAL: StepScript = {
@@ -108,6 +149,39 @@ export const storyScripts: PersonaScript[] = [
         },
       },
     ],
+    passport: {
+      applicationId: 'APP-2024-00142',
+      submittedAt: '15 Jan 2024, 10:07',
+      applicantName: 'Maria Santos',
+      product: 'Personal Loan',
+      requestedAmount: 15000,
+      status: 'approved',
+      auditTrail: [
+        { timestamp: '15 Jan 2024, 10:00', actor: 'Applicant', event: 'Application started. Personal details submitted.', outcome: 'info' },
+        { timestamp: '15 Jan 2024, 10:01', actor: 'System',    event: 'Identity verification initiated. Passport scan and proof-of-address queued for assessment.', outcome: 'info' },
+        { timestamp: '15 Jan 2024, 10:02', actor: 'System',    event: 'Document quality check: PASS (confidence 0.96). Both documents accepted.', outcome: 'pass' },
+        { timestamp: '15 Jan 2024, 10:03', actor: 'System',    event: 'Identity verification: PASS. Name, DOB, and nationality confirmed against register.', outcome: 'pass' },
+        { timestamp: '15 Jan 2024, 10:04', actor: 'System',    event: 'Compliance screening: PASS. No watchlist matches. Risk score: 2/100.', outcome: 'pass' },
+        { timestamp: '15 Jan 2024, 10:05', actor: 'Applicant', event: 'Product selected: Personal Loan, €15,000, EUR. Financial details submitted.', outcome: 'info' },
+        { timestamp: '15 Jan 2024, 10:06', actor: 'System',    event: 'Affordability check: PASS. DTI 22% — within automated approval limit of 33%.', outcome: 'pass' },
+        { timestamp: '15 Jan 2024, 10:07', actor: 'Applicant', event: 'Application reviewed and submitted for credit decision.', outcome: 'info' },
+        { timestamp: '15 Jan 2024, 10:08', actor: 'System',    event: 'Credit assessment completed. Score 742 — above threshold. Approved at full amount.', outcome: 'approved' },
+      ],
+      documents: [
+        { id: 'doc-001', name: 'Passport scan',    status: 'verified' },
+        { id: 'doc-002', name: 'Proof of address', status: 'verified' },
+        { id: 'doc-003', name: 'Loan agreement',   status: 'generated' },
+      ],
+      decision: {
+        outcome: 'approved',
+        decidedAt: '15 Jan 2024, 10:08',
+        decidedBy: 'System (automated credit engine)',
+        amount: 15000,
+        rate: 6.9,
+        termMonths: 36,
+        monthlyPayment: 463,
+      },
+    },
   },
   {
     personaId: 'blurry-docs',
@@ -145,6 +219,41 @@ export const storyScripts: PersonaScript[] = [
         },
       },
     ],
+    passport: {
+      applicationId: 'APP-2024-00143',
+      submittedAt: '16 Jan 2024, 11:22',
+      applicantName: 'James Chen',
+      product: 'Personal Loan',
+      requestedAmount: 15000,
+      status: 'approved',
+      auditTrail: [
+        { timestamp: '16 Jan 2024, 11:00', actor: 'Applicant', event: 'Application started. Personal details submitted.', outcome: 'info' },
+        { timestamp: '16 Jan 2024, 11:01', actor: 'System',    event: 'Identity verification initiated.', outcome: 'info' },
+        { timestamp: '16 Jan 2024, 11:02', actor: 'System',    event: 'Document quality check: FAIL. Passport confidence score 0.62 — below 0.70 threshold. Low-quality scan detected.', outcome: 'fail' },
+        { timestamp: '16 Jan 2024, 11:03', actor: 'System',    event: 'Resubmission requested. Applicant notified with specific reason and guidance.', outcome: 'info' },
+        { timestamp: '16 Jan 2024, 11:09', actor: 'Applicant', event: 'Passport re-uploaded with improved lighting.', outcome: 'info' },
+        { timestamp: '16 Jan 2024, 11:10', actor: 'System',    event: 'Document quality check: PASS (confidence 0.94). Re-uploaded document accepted.', outcome: 'pass' },
+        { timestamp: '16 Jan 2024, 11:11', actor: 'System',    event: 'Identity verification: PASS. Compliance screening: PASS. Risk score: 4/100.', outcome: 'pass' },
+        { timestamp: '16 Jan 2024, 11:15', actor: 'Applicant', event: 'Product and financial details submitted.', outcome: 'info' },
+        { timestamp: '16 Jan 2024, 11:22', actor: 'Applicant', event: 'Application submitted for credit decision.', outcome: 'info' },
+        { timestamp: '16 Jan 2024, 11:23', actor: 'System',    event: 'Credit assessment: PASS. Score 698. Approved at full amount.', outcome: 'approved' },
+      ],
+      documents: [
+        { id: 'doc-001', name: 'Passport scan (original — rejected)', status: 'rejected' },
+        { id: 'doc-002', name: 'Passport scan (resubmitted)',          status: 'verified' },
+        { id: 'doc-003', name: 'Proof of address',                     status: 'verified' },
+        { id: 'doc-004', name: 'Loan agreement',                       status: 'generated' },
+      ],
+      decision: {
+        outcome: 'approved',
+        decidedAt: '16 Jan 2024, 11:23',
+        decidedBy: 'System (automated credit engine)',
+        amount: 15000,
+        rate: 6.9,
+        termMonths: 36,
+        monthlyPayment: 463,
+      },
+    },
   },
   {
     personaId: 'watchlist-hit',
@@ -182,6 +291,43 @@ export const storyScripts: PersonaScript[] = [
         },
       },
     ],
+    passport: {
+      applicationId: 'APP-2024-00144',
+      submittedAt: '17 Jan 2024, 14:05',
+      applicantName: 'Alex Petrov',
+      product: 'Personal Loan',
+      requestedAmount: 15000,
+      status: 'approved',
+      auditTrail: [
+        { timestamp: '17 Jan 2024, 13:00', actor: 'Applicant',          event: 'Application started. Personal details submitted.', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 13:01', actor: 'System',             event: 'Identity verification initiated.', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 13:02', actor: 'System',             event: 'Document quality check: PASS (confidence 0.91).', outcome: 'pass' },
+        { timestamp: '17 Jan 2024, 13:03', actor: 'System',             event: 'Identity verification: PASS.', outcome: 'pass' },
+        { timestamp: '17 Jan 2024, 13:04', actor: 'System',             event: 'Compliance screening: ALERT. PEP match detected on EU Political Persons Register — 87% name similarity. Risk score: 72/100 (High). Mandatory manual review triggered.', outcome: 'escalated' },
+        { timestamp: '17 Jan 2024, 13:05', actor: 'System',             event: 'Case assigned to Compliance Officer queue. SLA deadline: 17 Jan 2024, 17:05 (4-hour window).', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 14:48', actor: 'Compliance Officer', event: 'Case opened. Watchlist evidence reviewed. Applicant profile assessed against match context.', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 15:12', actor: 'Compliance Officer', event: 'Decision: APPROVED. Justification: name similarity is phonetic, not a verified match. Applicant nationality and DOB do not align with PEP record. No further action required.', outcome: 'approved' },
+        { timestamp: '17 Jan 2024, 15:13', actor: 'System',             event: 'Compliance gate cleared. Application re-enters automated pipeline.', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 15:20', actor: 'Applicant',          event: 'Product and financial details submitted.', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 15:28', actor: 'Applicant',          event: 'Application submitted for credit decision.', outcome: 'info' },
+        { timestamp: '17 Jan 2024, 15:29', actor: 'System',             event: 'Credit assessment: PASS. Score 711. Approved at full amount.', outcome: 'approved' },
+      ],
+      documents: [
+        { id: 'doc-001', name: 'Passport scan',            status: 'verified' },
+        { id: 'doc-002', name: 'Proof of address',         status: 'verified' },
+        { id: 'doc-003', name: 'Compliance review report', status: 'generated' },
+        { id: 'doc-004', name: 'Loan agreement',           status: 'generated' },
+      ],
+      decision: {
+        outcome: 'approved',
+        decidedAt: '17 Jan 2024, 15:29',
+        decidedBy: 'System (automated credit engine, post compliance clearance)',
+        amount: 15000,
+        rate: 6.9,
+        termMonths: 36,
+        monthlyPayment: 463,
+      },
+    },
   },
   {
     personaId: 'borderline-credit',
@@ -229,6 +375,40 @@ export const storyScripts: PersonaScript[] = [
         },
       },
     ],
+    passport: {
+      applicationId: 'APP-2024-00145',
+      submittedAt: '18 Jan 2024, 09:42',
+      applicantName: 'Sarah Miller',
+      product: 'Personal Loan',
+      requestedAmount: 15000,
+      status: 'approved',
+      auditTrail: [
+        { timestamp: '18 Jan 2024, 09:00', actor: 'Applicant',   event: 'Application started. Personal details submitted.', outcome: 'info' },
+        { timestamp: '18 Jan 2024, 09:01', actor: 'System',      event: 'Identity verification: all checks PASS. Risk score: 6/100.', outcome: 'pass' },
+        { timestamp: '18 Jan 2024, 09:10', actor: 'Applicant',   event: 'Product selected: Personal Loan, €15,000. Financial details submitted. Income: €2,800/mo. Commitments: €980/mo.', outcome: 'info' },
+        { timestamp: '18 Jan 2024, 09:11', actor: 'System',      event: 'Affordability assessment: BORDERLINE. DTI 35% — exceeds 33% automated approval ceiling. Outside auto-decline threshold of 45%. Flagged for underwriter review.', outcome: 'escalated' },
+        { timestamp: '18 Jan 2024, 09:42', actor: 'Applicant',   event: 'Application reviewed and submitted.', outcome: 'info' },
+        { timestamp: '18 Jan 2024, 09:43', actor: 'System',      event: 'Case routed to Underwriter queue. Applicant notified of 1–2 business day review window.', outcome: 'info' },
+        { timestamp: '19 Jan 2024, 10:15', actor: 'Underwriter', event: 'Case opened. Income documentation, employment contract, and spending history reviewed.', outcome: 'info' },
+        { timestamp: '19 Jan 2024, 11:30', actor: 'Underwriter', event: 'Decision: APPROVED WITH CONDITIONS. Profile assessed as acceptable. Stable employment of 4 years offsets DTI margin. Condition: 12-month review clause applied.', outcome: 'approved' },
+      ],
+      documents: [
+        { id: 'doc-001', name: 'Passport scan',               status: 'verified' },
+        { id: 'doc-002', name: 'Proof of address',            status: 'verified' },
+        { id: 'doc-003', name: 'Underwriter assessment',      status: 'generated' },
+        { id: 'doc-004', name: 'Loan agreement (conditional)', status: 'generated' },
+      ],
+      decision: {
+        outcome: 'approved',
+        decidedAt: '19 Jan 2024, 11:30',
+        decidedBy: 'Underwriter (UW-012)',
+        amount: 15000,
+        rate: 6.9,
+        termMonths: 36,
+        monthlyPayment: 463,
+        conditions: ['12-month account review clause', 'No further credit applications within 6 months'],
+      },
+    },
   },
   {
     personaId: 'declined',
@@ -264,6 +444,40 @@ export const storyScripts: PersonaScript[] = [
         },
       },
     ],
+    passport: {
+      applicationId: 'APP-2024-00146',
+      submittedAt: '19 Jan 2024, 15:10',
+      applicantName: 'Tom Baker',
+      product: 'Personal Loan',
+      requestedAmount: 15000,
+      status: 'declined',
+      auditTrail: [
+        { timestamp: '19 Jan 2024, 15:00', actor: 'Applicant', event: 'Application started. Personal details submitted.', outcome: 'info' },
+        { timestamp: '19 Jan 2024, 15:01', actor: 'System',    event: 'Identity verification: all checks PASS. Risk score: 8/100.', outcome: 'pass' },
+        { timestamp: '19 Jan 2024, 15:05', actor: 'Applicant', event: 'Product selected: Personal Loan, €15,000. Financial details submitted.', outcome: 'info' },
+        { timestamp: '19 Jan 2024, 15:06', actor: 'System',    event: 'Affordability check: DTI 42% — above automated approval ceiling.', outcome: 'fail' },
+        { timestamp: '19 Jan 2024, 15:10', actor: 'Applicant', event: 'Application submitted for credit decision.', outcome: 'info' },
+        { timestamp: '19 Jan 2024, 15:11', actor: 'System',    event: 'Credit score assessed: 498 — below minimum threshold of 580.', outcome: 'fail' },
+        { timestamp: '19 Jan 2024, 15:11', actor: 'System',    event: 'Credit history: 8 months — below 12-month minimum for requested amount.', outcome: 'fail' },
+        { timestamp: '19 Jan 2024, 15:11', actor: 'System',    event: 'Three independent decline conditions triggered. No counter-offer band applicable. Decision: DECLINED.', outcome: 'declined' },
+        { timestamp: '19 Jan 2024, 15:12', actor: 'System',    event: 'Decline letter generated with three stated reasons and re-apply eligibility date.', outcome: 'info' },
+      ],
+      documents: [
+        { id: 'doc-001', name: 'Passport scan',    status: 'verified' },
+        { id: 'doc-002', name: 'Proof of address', status: 'verified' },
+        { id: 'doc-003', name: 'Decline letter',   status: 'generated' },
+      ],
+      decision: {
+        outcome: 'declined',
+        decidedAt: '19 Jan 2024, 15:11',
+        decidedBy: 'System (automated credit engine)',
+        reasons: [
+          'Credit score (498) below minimum threshold of 580',
+          'Debt-to-income ratio (42%) exceeds lending criteria of 33%',
+          'Insufficient credit history (8 months) for the requested amount',
+        ],
+      },
+    },
   },
   {
     personaId: 'counter-offer',
@@ -299,5 +513,38 @@ export const storyScripts: PersonaScript[] = [
         },
       },
     ],
+    passport: {
+      applicationId: 'APP-2024-00147',
+      submittedAt: '20 Jan 2024, 13:55',
+      applicantName: 'Lisa Wang',
+      product: 'Personal Loan',
+      requestedAmount: 15000,
+      status: 'counter-offer',
+      auditTrail: [
+        { timestamp: '20 Jan 2024, 13:30', actor: 'Applicant', event: 'Application started. Personal details submitted.', outcome: 'info' },
+        { timestamp: '20 Jan 2024, 13:31', actor: 'System',    event: 'Identity verification: all checks PASS. Risk score: 14/100.', outcome: 'pass' },
+        { timestamp: '20 Jan 2024, 13:40', actor: 'Applicant', event: 'Product selected: Personal Loan, €15,000. Financial details submitted.', outcome: 'info' },
+        { timestamp: '20 Jan 2024, 13:41', actor: 'System',    event: 'Affordability check: PASS. DTI 28%.', outcome: 'pass' },
+        { timestamp: '20 Jan 2024, 13:55', actor: 'Applicant', event: 'Application submitted for credit decision.', outcome: 'info' },
+        { timestamp: '20 Jan 2024, 13:56', actor: 'System',    event: 'Credit assessment: score adequate but risk-adjusted lending capacity capped at €8,000 for this profile. Full €15,000 exceeds safe exposure limit.', outcome: 'info' },
+        { timestamp: '20 Jan 2024, 13:56', actor: 'System',    event: 'Counter-offer band triggered (€6,000–€10,000 available). Optimal counter-offer calculated: €8,000 at 8.9% over 24 months.', outcome: 'info' },
+        { timestamp: '20 Jan 2024, 13:57', actor: 'Applicant', event: 'Counter-offer presented. Customer reviewed and ACCEPTED: €8,000, 8.9% APR, 24 months, €367/month.', outcome: 'approved' },
+      ],
+      documents: [
+        { id: 'doc-001', name: 'Passport scan',        status: 'verified' },
+        { id: 'doc-002', name: 'Proof of address',     status: 'verified' },
+        { id: 'doc-003', name: 'Counter-offer letter', status: 'generated' },
+        { id: 'doc-004', name: 'Loan agreement',       status: 'generated' },
+      ],
+      decision: {
+        outcome: 'counter-offer',
+        decidedAt: '20 Jan 2024, 13:57',
+        decidedBy: 'System (automated credit engine)',
+        offeredAmount: 8000,
+        rate: 8.9,
+        termMonths: 24,
+        monthlyPayment: 367,
+      },
+    },
   },
 ];
