@@ -62,7 +62,7 @@ function DocUpload({ docType, label, onComplete }: { docType: string; label: str
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
+  async function handleFile(_file: File) {
     setStatus('uploading');
     for (let i = 0; i <= 100; i += 20) {
       setProgress(i);
