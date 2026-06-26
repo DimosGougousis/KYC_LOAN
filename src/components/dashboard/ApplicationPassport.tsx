@@ -1,4 +1,4 @@
-import type { ApplicationPassportData, AuditOutcome, OutcomeColor } from '../../data/storyScripts';
+import type { ApplicationPassportData, AuditEvent, AuditOutcome, OutcomeColor, PassportDocument } from '../../data/storyScripts';
 
 interface ApplicationPassportProps {
   passport: ApplicationPassportData;
@@ -23,7 +23,7 @@ const AUDIT_TEXT: Record<AuditOutcome, string> = {
   info:      'text-slate-700',
 };
 
-const DOC_STATUS_ICON: Record<string, string> = {
+const DOC_STATUS_ICON: Record<PassportDocument['status'], string> = {
   verified:    '✓',
   rejected:    '✗',
   resubmitted: '↩',
@@ -31,7 +31,7 @@ const DOC_STATUS_ICON: Record<string, string> = {
   pending:     '…',
 };
 
-const DOC_STATUS_COLOR: Record<string, string> = {
+const DOC_STATUS_COLOR: Record<PassportDocument['status'], string> = {
   verified:    'bg-green-50 border-green-200 text-green-700',
   rejected:    'bg-red-50 border-red-200 text-red-700',
   resubmitted: 'bg-blue-50 border-blue-200 text-blue-700',
@@ -74,7 +74,7 @@ const DECISION_COLOR: Record<string, string> = {
   'under-review':  'bg-amber-50 border-amber-200 text-amber-800',
 };
 
-const ACTOR_BADGE: Record<string, string> = {
+const ACTOR_BADGE: Record<AuditEvent['actor'], string> = {
   'System':             'bg-slate-100 text-slate-500',
   'Applicant':          'bg-blue-100 text-blue-600',
   'Compliance Officer': 'bg-amber-100 text-amber-700',
@@ -162,7 +162,7 @@ export default function ApplicationPassport({ passport, outcomeColor }: Applicat
                 </div>
               )}
 
-              <div className="pt-1 border-t border-current border-opacity-10 text-[10px] opacity-60 space-y-0.5">
+              <div className="pt-1 border-t border-current/10 text-[10px] opacity-60 space-y-0.5">
                 <p>Decided by: {decision.decidedBy}</p>
                 <p>{decision.decidedAt}</p>
               </div>

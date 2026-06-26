@@ -1,4 +1,4 @@
-import type { StepScript, OutcomeColor } from '../../data/storyScripts';
+import type { StepScript, OutcomeColor, Moment } from '../../data/storyScripts';
 
 interface NarrativeCardProps {
   step: StepScript;
@@ -8,7 +8,7 @@ interface NarrativeCardProps {
   onClick: () => void;
 }
 
-const MOMENT_ROWS: { key: keyof import('../../data/storyScripts').Moment; label: string; icon: string }[] = [
+const MOMENT_ROWS: { key: keyof Moment; label: string; icon: string }[] = [
   { key: 'context',  label: 'Context',        icon: '📋' },
   { key: 'trigger',  label: 'Trigger',         icon: '⚡' },
   { key: 'decision', label: 'Decision Point',  icon: '🔀' },
@@ -41,9 +41,10 @@ export default function NarrativeCard({ step, index, isActive, outcomeColor, onC
       type="button"
       onClick={onClick}
       className={`
-        w-full text-left bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden
+        w-full text-left bg-white rounded-xl shadow-sm overflow-hidden
         transition-all hover:shadow-md
         ${isActive ? ACTIVE_BORDER[outcomeColor] : 'border-l-4 border-l-slate-200'}
+        border-r border-t border-b border-slate-200
       `}
     >
       {/* Card header */}

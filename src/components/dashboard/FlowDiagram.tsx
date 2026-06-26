@@ -1,4 +1,4 @@
-import type { PersonaScript } from '../../data/storyScripts';
+import type { PersonaScript, OutcomeColor, StepScript } from '../../data/storyScripts';
 
 interface FlowDiagramProps {
   persona: PersonaScript;
@@ -6,21 +6,21 @@ interface FlowDiagramProps {
   onStepClick: (stepId: string) => void;
 }
 
-const OUTCOME_ACTIVE: Record<string, string> = {
+const OUTCOME_ACTIVE: Record<OutcomeColor, string> = {
   green:  'bg-green-600 border-green-600 text-white',
   red:    'bg-red-600 border-red-600 text-white',
   blue:   'bg-blue-600 border-blue-600 text-white',
   amber:  'bg-amber-500 border-amber-500 text-white',
 };
 
-const OUTCOME_RING: Record<string, string> = {
+const OUTCOME_RING: Record<OutcomeColor, string> = {
   green:  'ring-2 ring-green-300',
   red:    'ring-2 ring-red-300',
   blue:   'ring-2 ring-blue-300',
   amber:  'ring-2 ring-amber-300',
 };
 
-const EXCEPTION_BADGE: Record<string, string> = {
+const EXCEPTION_BADGE: Record<NonNullable<StepScript['exceptionColor']>, string> = {
   amber: 'bg-amber-100 text-amber-700 border-amber-200',
   red:   'bg-red-100 text-red-700 border-red-200',
 };
