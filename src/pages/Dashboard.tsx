@@ -3,6 +3,7 @@ import { storyScripts } from '../data/storyScripts';
 import type { OutcomeColor } from '../data/storyScripts';
 import FlowDiagram from '../components/dashboard/FlowDiagram';
 import NarrativeCard from '../components/dashboard/NarrativeCard';
+import ApplicationPassport from '../components/dashboard/ApplicationPassport';
 
 const PERSONA_TAB_ACTIVE: Record<OutcomeColor, string> = {
   green: 'border-green-500 bg-green-50 text-green-800',
@@ -70,6 +71,15 @@ export default function Dashboard() {
             persona={persona}
             activeStepId={activeStepId}
             onStepClick={setActiveStepId}
+          />
+        </section>
+
+        {/* Application Passport */}
+        <section>
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Application passport</h2>
+          <ApplicationPassport
+            passport={persona.passport}
+            outcomeColor={persona.outcomeColor}
           />
         </section>
 
