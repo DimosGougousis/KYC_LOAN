@@ -33,7 +33,7 @@ const ROWS: { label: string; cell: (c: CaseFile) => ReactNode }[] = [
       return <span className={`num ${d.offer ? '' : 'text-muted'}`}>{fmtEur(payment, { cents: true })}</span>;
     },
   },
-  { label: 'Time to decision', cell: (c) => <span className="num">{c.persona.decisionMinutes} min</span> },
+  { label: 'Time to decision', cell: (c) => <span className="num">{c.decisionMinutes} min</span> },
   { label: 'Human in the loop', cell: (c) => (c.needsReviewer ? 'Yes' : 'No') },
 ];
 

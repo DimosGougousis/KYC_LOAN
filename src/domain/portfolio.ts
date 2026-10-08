@@ -7,7 +7,7 @@ export function allCases(): CaseFile[] {
 }
 
 export function portfolioKpis(cases: CaseFile[]): Kpi[] {
-  const mins = cases.map((c) => c.persona.decisionMinutes).sort((a, b) => a - b);
+  const mins = cases.map((c) => c.decisionMinutes).sort((a, b) => a - b);
   const mid = mins.length / 2;
   const median = mins.length % 2 ? mins[Math.floor(mid)] : (mins[mid - 1] + mins[mid]) / 2;
   const human = cases.filter((c) => c.needsReviewer).length;

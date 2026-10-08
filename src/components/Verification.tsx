@@ -51,8 +51,10 @@ export default function Verification({ workflowId, onStateChange }: Props) {
 
   const sub = data?.state.sub ?? 'checking';
 
+  // Report progress upward so the live case file only shows results that exist.
   useEffect(() => {
     if (sub === 'complete') onStateChange({ stage: 'product-selection', sub: 'selecting' });
+    else onStateChange({ stage: 'verification', sub });
   }, [sub, onStateChange]);
 
   async function reupload() {

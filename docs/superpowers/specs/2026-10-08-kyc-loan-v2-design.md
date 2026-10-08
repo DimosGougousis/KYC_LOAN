@@ -220,6 +220,10 @@ Each persona's facts in `data/personas.ts` must yield its target outcome (Sectio
 2. The live sidebar is derived from stage-tagged audit events (`liveSnapshot`) instead of `caseEvents` on every MSW response.
 3. Preset "Rent +15%" renamed "Living costs +15%" because the expenses input scales rent and other expenses together.
 4. `policy.ts` exposes `evaluatePolicy(input)` (rules only, never `counter-offer`) and `decide(facts, terms)` (affordability + rules + counter-offer search).
+5. (Final review) The wizard's loan and financial steps show the persona file read-only, with a link to the scenario lab for "what if" — the decision is always made on the persona file, so editable fields would be silently ignored.
+6. (Final review) "Time to decision" is derived from the decision event in the audit trail, not stored separately.
+7. (Final review) The live sidebar stacks below the form under `lg` instead of becoming a bottom drawer.
+8. (Final review) The decision step keeps its own presentation of the same computed terms instead of reusing the case-file KPI tiles and decision box, and the verification step keeps its three-stage progression; per-check results and scores appear in the live sidebar and the case file.
 
 ## 12. Out of scope
 

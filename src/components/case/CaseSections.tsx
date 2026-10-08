@@ -3,7 +3,8 @@ import { BIAN } from '../../domain/audit';
 import { OUTCOME_LABEL, OUTCOME_TONE, type CaseFile } from '../../domain/caseFile';
 import { fmtEur, fmtPct, fmtRate, fmtScore, fmtTime } from '../../domain/format';
 import { POLICY } from '../../domain/policy';
-import type { AuditEvent, CheckResult, Tone } from '../../domain/types';
+import { REVIEW_LABEL, REVIEW_TONE, type ReviewRecord } from '../../domain/review';
+import type { CheckResult, Tone } from '../../domain/types';
 import { DataTable } from '../../ui/DataTable';
 import { Panel, Section, StatusBadge, Tag } from '../../ui/primitives';
 import { StackedBar } from '../../ui/StackedBar';
@@ -92,16 +93,25 @@ export function AffordabilitySection({ cf }: { cf: CaseFile }) {
   );
 }
 
-function DecisionBox({ cf }: { cf: CaseFile }) {
+function DecisionBox({ cf, review }: { cf: CaseFile; review?: ReviewRecord }) {
   const d = cf.decision;
   const failing = d.rules.filter((r) => r.outcome && r.outcome !== 'approved');
   const terms = d.offer;
   const latest = new Map(cf.persona.documents.map((x) => [x.doc, x]));
   return (
     <div className="space-y-4">
-      <Panel className="p-5">
+      <Panel className="p-5" data-testid="decision-box">
         <p className="font-mono text-[11px] tracking-[0.12em] text-muted uppercase">Decision</p>
-        <p className={`mt-1 font-display text-xl font-semibold ${TONE_TEXT[OUTCOME_TONE[d.outcome]]}`}>{OUTCOME_LABEL[d.outcome]}</p>
+        {review ? (
+          <>
+            <p className={`mt-1 font-display text-xl font-semibold ${TONE_TEXT[REVIEW_TONE[review.action]]}`}>{REVIEW_LABEL[review.action]}</p>
+            <p className="mt-1 text-sm text-muted">{review.event.actor}, after: {OUTCOME_LABEL[d.outcome].toLowerCase()}.</p>
+            <p className="mt-2 text-sm">{review.rationale}</p>
+            {review.conditions && <p className="mt-1 text-sm">Conditions: {review.conditions}</p>}
+          </>
+        ) : (
+          <p className={`mt-1 font-display text-xl font-semibold ${TONE_TEXT[OUTCOME_TONE[d.outcome]]}`}>{OUTCOME_LABEL[d.outcome]}</p>
+        )}
         {terms && d.offerAffordability && (
           <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
             <dt className="text-muted">Amount</dt>
@@ -133,8 +143,9 @@ function DecisionBox({ cf }: { cf: CaseFile }) {
   );
 }
 
-export function AuditSection({ cf, extra, children }: { cf: CaseFile; extra: AuditEvent[]; children?: ReactNode }) {
-  const events = [...cf.audit, ...extra];
+export function AuditSection({ cf, reviews, children }: { cf: CaseFile; reviews: ReviewRecord[]; children?: ReactNode }) {
+  const events = [...cf.audit, ...reviews.map((r) => r.event)];
+  const final = [...reviews].reverse().find((r) => r.action !== 'request-info');
   return (
     <Section eyebrow="Section 4" title="Audit trail and decision" lede="Every event is labelled with the BIAN service domain that produced it.">
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -153,7 +164,7 @@ export function AuditSection({ cf, extra, children }: { cf: CaseFile; extra: Aud
             </li>
           ))}
         </ol>
-        <DecisionBox cf={cf} />
+        <DecisionBox cf={cf} review={final} />
       </div>
       {children}
     </Section>

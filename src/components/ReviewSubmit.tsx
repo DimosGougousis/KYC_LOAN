@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { currentPersona } from '../data/personas';
+import { fmtEur, fmtRate } from '../domain/format';
+import { monthlyPayment } from '../domain/loan';
+import { aprForScore } from '../domain/policy';
 import { apiUrl } from '../lib/api';
 
 interface Props {
@@ -8,39 +11,38 @@ interface Props {
 }
 
 export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
-  const defaults = currentPersona().form;
+  const persona = currentPersona();
+  const f = persona.form;
+  const apr = aprForScore(persona.creditScore);
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const sections = [
+  const sections: { title: string; fields: [string, string][] }[] = [
     {
       title: 'Personal details',
-      fields: [
-        { label: 'Full name', value: `${defaults.firstName} ${defaults.lastName}` },
-        { label: 'Email', value: defaults.email },
-        { label: 'Phone', value: defaults.phone },
-      ],
+      fields: [['Full name', `${f.firstName} ${f.lastName}`], ['Email', f.email], ['Phone', f.phone]],
     },
     {
-      title: 'Products selected',
+      title: 'Loan',
       fields: [
-        { label: 'Account type', value: 'Current Account' },
-        { label: 'Loan amount', value: `€${defaults.loanAmount.toLocaleString()}` },
-        { label: 'Loan term', value: `${defaults.loanTerm} months` },
-        { label: 'Est. monthly', value: `€${Math.round(defaults.loanAmount * (0.00575 * 1.00575 ** Number(defaults.loanTerm)) / (1.00575 ** Number(defaults.loanTerm) - 1)).toLocaleString()}` },
+        ['Purpose', persona.purpose],
+        ['Amount', fmtEur(f.loanAmount)],
+        ['Term', `${f.loanTerm} months`],
+        ['Rate', `${fmtRate(apr)} APR`],
+        ['Monthly payment', fmtEur(monthlyPayment(f.loanAmount, apr, Number(f.loanTerm)), { cents: true })],
       ],
     },
     {
       title: 'Financial details',
       fields: [
-        { label: 'Employment', value: defaults.employmentType.replace('-', ' ') },
-        { label: 'Annual income', value: `€${defaults.annualIncome.toLocaleString()}` },
-        { label: 'Monthly rent', value: `€${defaults.monthlyRent.toLocaleString()}` },
+        ['Annual income', fmtEur(f.annualIncome)],
+        ['Monthly rent', fmtEur(f.monthlyRent)],
+        ['Existing repayments', fmtEur(f.existingDebt)],
       ],
     },
   ];
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!agreed) return;
     setSubmitting(true);
@@ -60,18 +62,18 @@ export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="rounded-lg border border-line bg-surface p-6">
-        <h2 className="font-display text-xl font-semibold text-ink mb-6">Review your application</h2>
+        <h2 className="mb-6 font-display text-xl font-semibold text-ink">Review your application</h2>
         <div className="space-y-6">
           {sections.map((s) => (
-            <div key={s.title} className="border border-line rounded-lg overflow-hidden">
-              <div className="bg-wash px-4 py-3 border-b border-line">
+            <div key={s.title} className="overflow-hidden rounded-lg border border-line">
+              <div className="border-b border-line bg-wash px-4 py-3">
                 <h3 className="text-sm font-semibold text-ink">{s.title}</h3>
               </div>
               <dl className="divide-y divide-line">
-                {s.fields.map((f) => (
-                  <div key={f.label} className="flex px-4 py-2.5 gap-4">
-                    <dt className="text-xs text-muted w-40 shrink-0">{f.label}</dt>
-                    <dd className="text-sm text-ink font-medium">{f.value}</dd>
+                {s.fields.map(([label, value]) => (
+                  <div key={label} className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 px-4 py-2.5">
+                    <dt className="text-xs text-muted">{label}</dt>
+                    <dd className="num text-sm font-medium break-all text-ink">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -81,18 +83,15 @@ export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
       </div>
 
       <div className="rounded-lg border border-line bg-surface p-6">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-line text-accent focus:ring-accent/30" />
+        <label className="flex cursor-pointer items-start gap-3">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-line" />
           <span className="text-sm text-ink">
-            I confirm that all information provided is accurate and complete. I have read and agree to the{' '}
-            <a href="#" className="text-accent underline">Terms and Conditions</a>,{' '}
-            <a href="#" className="text-accent underline">Privacy Policy</a>, and{' '}
-            <a href="#" className="text-accent underline">Loan Agreement</a>.
+            I confirm that all information provided is accurate and complete, and I agree to the demo terms. (Demo only: nothing is sent anywhere.)
           </span>
         </label>
       </div>
 
-      <button type="submit" disabled={!agreed || submitting} className="w-full bg-accent text-white font-semibold py-3.5 rounded-lg hover:bg-accent/90 disabled:opacity-50 transition-colors">
+      <button type="submit" disabled={!agreed || submitting} className="w-full rounded-lg bg-accent py-3.5 font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50">
         {submitting ? 'Submitting…' : 'Submit application'}
       </button>
     </form>

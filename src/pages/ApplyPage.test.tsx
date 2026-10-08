@@ -25,7 +25,7 @@ describe('ApplyPage', () => {
     await user.click(screen.getByRole('button', { name: /Continue/ }));
     await waitFor(() => expect(screen.getByText(/Step 3 of 6/i)).toBeInTheDocument(), { timeout: 8000 });
     expect(screen.getByText('€462.47')).toBeInTheDocument();
-    expect(screen.getByText(/6\.9% APR/)).toBeInTheDocument();
+    expect(screen.getAllByText(/6\.9% APR/).length).toBeGreaterThan(0);
     const side = screen.getByRole('complementary', { name: 'Live case file' });
     expect(within(side).getByText('KYC clear')).toBeInTheDocument();
   }, 15000);
@@ -39,5 +39,28 @@ describe('ApplyPage', () => {
     expect(screen.getByText(/62% — below our threshold/)).toBeInTheDocument();
     await user.click(reupload);
     await waitFor(() => expect(screen.getByText(/Step 3 of 6/i)).toBeInTheDocument(), { timeout: 8000 });
+  }, 20000);
+
+  it('loan and financial steps show the persona file read-only and review shows the computed payment', async () => {
+    localStorage.setItem('demoPersona', 'borderline-credit');
+    const { user } = renderApp('/apply/new');
+    await screen.findByText(/Step 1 of 6/i);
+    await user.click(screen.getByRole('button', { name: /Continue/ }));
+    await waitFor(() => expect(screen.getByText(/Step 3 of 6/i)).toBeInTheDocument(), { timeout: 8000 });
+
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Current Account/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Home improvement')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /scenario lab/i })).toHaveAttribute('href', '/case/borderline-credit#scenario-lab');
+    await user.click(screen.getByRole('button', { name: /^Continue/ }));
+
+    await screen.findByText(/Step 4 of 6/i);
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(screen.getByText('€30,000')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Continue/ }));
+
+    await screen.findByText(/Step 5 of 6/i);
+    expect(screen.getAllByText('€476.30').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Account type')).not.toBeInTheDocument();
   }, 20000);
 });

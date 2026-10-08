@@ -1,81 +1,37 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useState, type FormEvent } from 'react';
 import { currentPersona } from '../data/personas';
+import { fmtEur } from '../domain/format';
 import { apiUrl } from '../lib/api';
 
-const schema = z.object({
-  employmentType: z.enum(['employed', 'self-employed', 'contractor', 'retired', 'unemployed']),
-  employerName: z.string().optional(),
-  jobTitle: z.string().optional(),
-  annualIncome: z.number().min(0),
-  payFrequency: z.enum(['weekly', 'fortnightly', 'monthly', 'annual']),
-  monthlyRent: z.number().min(0),
-  existingDebt: z.number().min(0),
-  otherExpenses: z.number().min(0),
-});
-
-type FormData = z.infer<typeof schema>;
+const EMPLOYMENT: Record<string, string> = {
+  employed: 'Employed',
+  'self-employed': 'Self-employed',
+  contractor: 'Contractor',
+  retired: 'Retired',
+  unemployed: 'Not currently employed',
+};
 
 interface Props {
   workflowId: string;
   onStateChange: (state: { stage: string; sub: string }) => void;
 }
 
-interface FormFieldProps {
-  label: string;
-  error?: { message?: string };
-  register: any;
-  name: string;
-  required?: boolean;
-  type?: string;
-  options?: { valueAsNumber?: boolean };
-}
-
-function FormField({ label, error, register, name, required, type = 'text', options }: FormFieldProps) {
-  const id = `field-${name}`;
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-ink">
-        {label}{required && <span className="text-bad ml-0.5">*</span>}
-      </label>
-      <input
-        id={id}
-        type={type}
-        {...register(name, options)}
-        className={`rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-          error ? 'border-bad focus:ring-bad/30' : 'border-line focus:ring-accent/30'
-        }`}
-      />
-      {error && <p className="text-xs text-bad">{error.message}</p>}
-    </div>
-  );
-}
-
 export default function FinancialDetails({ workflowId, onStateChange }: Props) {
-  const defaults = currentPersona().form;
+  const persona = currentPersona();
+  const f = persona.form;
   const [submitting, setSubmitting] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      employmentType: defaults.employmentType as FormData['employmentType'],
-      annualIncome: defaults.annualIncome,
-      payFrequency: 'monthly',
-      monthlyRent: defaults.monthlyRent,
-      existingDebt: defaults.existingDebt,
-      otherExpenses: defaults.otherExpenses,
-    },
-  });
-
-  async function onSubmit(data: FormData) {
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
     setSubmitting(true);
     try {
       const res = await fetch(apiUrl(`/workflow/${workflowId}/financial-details`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          employmentType: f.employmentType, annualIncome: f.annualIncome, payFrequency: 'monthly',
+          monthlyRent: f.monthlyRent, existingDebt: f.existingDebt, otherExpenses: f.otherExpenses,
+        }),
       });
       const json = await res.json();
       onStateChange(json.state);
@@ -84,46 +40,32 @@ export default function FinancialDetails({ workflowId, onStateChange }: Props) {
     }
   }
 
+  const rows: [string, string][] = [
+    ['Employment', EMPLOYMENT[f.employmentType] ?? f.employmentType],
+    ['Employer', persona.employer],
+    ['Years with employer', String(persona.yearsEmployed)],
+    ['Annual gross income', fmtEur(f.annualIncome)],
+    ['Monthly rent or mortgage', fmtEur(f.monthlyRent)],
+    ['Existing debt repayments', fmtEur(f.existingDebt)],
+    ['Other monthly expenses', fmtEur(f.otherExpenses)],
+  ];
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
-      <div className="rounded-lg border border-line bg-surface p-6 space-y-4">
-        <h2 className="font-display text-lg font-semibold text-ink">Employment</h2>
-        <div>
-          <label className="text-sm font-medium text-ink block mb-1">Employment Type</label>
-          <select {...register('employmentType')} className="w-full border border-line rounded-md px-3 py-2 text-sm">
-            <option value="employed">Employed (full-time or part-time)</option>
-            <option value="self-employed">Self-employed</option>
-            <option value="contractor">Contractor</option>
-            <option value="retired">Retired</option>
-            <option value="unemployed">Not currently employed</option>
-          </select>
-        </div>
-        <FormField label="Employer name (optional)" name="employerName" register={register} error={errors.employerName} />
-        <FormField label="Job title (optional)" name="jobTitle" register={register} error={errors.jobTitle} />
+    <form onSubmit={onSubmit} className="space-y-6">
+      <div className="rounded-lg border border-line bg-surface p-6">
+        <h2 className="font-display text-lg font-semibold text-ink">Income and outgoings</h2>
+        <p className="mt-1 text-sm text-muted">Declared in {f.firstName}'s application file. The affordability check uses exactly these figures.</p>
+        <dl className="mt-4 divide-y divide-line rounded-lg border border-line">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+              <dt className="text-muted">{k}</dt>
+              <dd className="num text-right text-ink">{v}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
-      <div className="rounded-lg border border-line bg-surface p-6 space-y-4">
-        <h2 className="font-display text-lg font-semibold text-ink">Income</h2>
-        <FormField label="Annual income (€)" name="annualIncome" register={register} error={errors.annualIncome} required type="number" options={{ valueAsNumber: true }} />
-        <div>
-          <label className="text-sm font-medium text-ink block mb-1">Pay frequency</label>
-          <select {...register('payFrequency')} className="w-full border border-line rounded-md px-3 py-2 text-sm">
-            <option value="weekly">Weekly</option>
-            <option value="fortnightly">Fortnightly</option>
-            <option value="monthly">Monthly</option>
-            <option value="annual">Annual / lump sum</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-line bg-surface p-6 space-y-4">
-        <h2 className="font-display text-lg font-semibold text-ink">Monthly outgoings</h2>
-        <FormField label="Monthly rent or mortgage (€)" name="monthlyRent" register={register} error={errors.monthlyRent} required type="number" options={{ valueAsNumber: true }} />
-        <FormField label="Existing debt repayments (€)" name="existingDebt" register={register} error={errors.existingDebt} required type="number" options={{ valueAsNumber: true }} />
-        <FormField label="Other expenses (€)" name="otherExpenses" register={register} error={errors.otherExpenses} required type="number" options={{ valueAsNumber: true }} />
-      </div>
-
-      <button type="submit" disabled={submitting} className="w-full bg-accent text-white font-semibold py-3 rounded-lg hover:bg-accent/90 disabled:opacity-60 transition-colors">
+      <button type="submit" disabled={submitting} className="w-full rounded-lg bg-accent py-3 font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-60">
         {submitting ? 'Saving…' : 'Continue'}
       </button>
     </form>

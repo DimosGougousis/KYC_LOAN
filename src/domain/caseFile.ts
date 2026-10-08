@@ -35,6 +35,7 @@ export interface CaseFile {
   audit: AuditEvent[];
   needsReviewer: boolean;
   submittedAt: string;
+  decisionMinutes: number;
 }
 
 export function buildCaseFile(id: string | undefined): CaseFile | null {
@@ -43,6 +44,9 @@ export function buildCaseFile(id: string | undefined): CaseFile | null {
   const terms = requestedTerms(persona);
   const decision = decideForPersona(persona);
   const audit = buildAudit(persona, decision);
+  // Derived from the audit trail so the KPI and the timeline can never disagree.
+  const decidedAt = audit.filter((e) => e.stage === 'decision').at(-1)!.at;
+  const decisionMinutes = (Date.parse(decidedAt) - Date.parse(persona.startedAt)) / 60_000;
   const dti = decision.affordability.dtiAfter;
   const s = persona.creditScore;
   const needsReviewer = decision.outcome === 'refer-compliance' || decision.outcome === 'refer-underwriting';
@@ -54,7 +58,7 @@ export function buildCaseFile(id: string | undefined): CaseFile | null {
       tone: dti === null || dti > POLICY.dtiMax ? 'bad' : dti > POLICY.dtiAuto ? 'warn' : 'good',
     },
     { label: 'Credit score', value: String(s), sub: scoreBand(s), tone: s < POLICY.scoreMin ? 'bad' : s < POLICY.scoreAuto ? 'warn' : 'good' },
-    { label: 'Time to decision', value: `${persona.decisionMinutes} min`, sub: needsReviewer ? 'to referral' : 'fully automated' },
+    { label: 'Time to decision', value: `${decisionMinutes} min`, sub: needsReviewer ? 'to referral' : 'fully automated' },
   ];
   const submitted = audit.find((e) => e.stage === 'review-submit') ?? audit[audit.length - 1];
   return {
@@ -62,5 +66,6 @@ export function buildCaseFile(id: string | undefined): CaseFile | null {
     insights: buildInsights(persona, decision),
     questions: buildQuestions(persona, decision),
     submittedAt: submitted.at,
+    decisionMinutes,
   };
 }

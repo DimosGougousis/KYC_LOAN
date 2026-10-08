@@ -59,7 +59,7 @@ export default function CaseFilePage() {
       >
         <ScenarioLab key={p.id} persona={p} />
       </Section>
-      <AuditSection cf={cf} extra={records.map((r) => r.event)}>
+      <AuditSection cf={cf} reviews={records}>
         {cf.needsReviewer && !decided && <ReviewerPanel personaId={p.id} role={role} />}
       </AuditSection>
       <QuestionsSection cf={cf} />

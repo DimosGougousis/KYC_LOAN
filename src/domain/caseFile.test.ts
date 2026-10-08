@@ -17,6 +17,15 @@ describe('buildCaseFile', () => {
     expect(k[2].value).toBe('15.3%');
     expect(k[3].sub).toBe('Very good');
   });
+  it('time to decision matches the decision event in the audit trail', () => {
+    for (const id of PERSONA_IDS) {
+      const c = cf(id);
+      const decided = c.audit.filter((e) => e.stage === 'decision').at(-1)!;
+      const minutes = (Date.parse(decided.at) - Date.parse(c.persona.startedAt)) / 60_000;
+      expect(c.decisionMinutes).toBe(minutes);
+      expect(c.kpis.find((k) => k.label === 'Time to decision')!.value).toBe(`${minutes} min`);
+    }
+  });
   it('flags reviewer cases', () => {
     expect(cf('watchlist-hit').needsReviewer).toBe(true);
     expect(cf('borderline-credit').needsReviewer).toBe(true);
@@ -90,6 +99,19 @@ describe('liveSnapshot', () => {
     expect(s.risk.tone).toBe('warn');
     expect(s.events.length).toBeLessThanOrEqual(5);
     expect(Date.parse(s.events[0].at)).toBeGreaterThanOrEqual(Date.parse(s.events.at(-1)!.at));
+  });
+  it('does not reveal results while verification is still checking', () => {
+    const s = liveSnapshot(cf('happy-path'), 'verification', 'checking');
+    expect(s.checks.every((c) => c.status === 'pending')).toBe(true);
+    expect(s.events.every((e) => e.stage === 'personal-details')).toBe(true);
+    expect(s.risk).toEqual({ label: 'Checking…', tone: 'info' });
+  });
+  it('shows only the failed capture while a re-upload is pending', () => {
+    const s = liveSnapshot(cf('blurry-docs'), 'verification', 'issues');
+    expect(s.events.some((e) => e.text.includes('re-upload requested'))).toBe(true);
+    expect(s.events.some((e) => e.text.startsWith('Passport (re-upload)'))).toBe(false);
+    expect(s.checks.every((c) => c.status === 'pending')).toBe(true);
+    expect(s.risk).toEqual({ label: 'Re-upload needed', tone: 'warn' });
   });
   it('shows the outcome at the decision stage', () => {
     expect(liveSnapshot(cf('declined'), 'decision').risk).toEqual({ label: 'Declined', tone: 'bad' });

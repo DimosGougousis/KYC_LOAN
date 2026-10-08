@@ -36,7 +36,8 @@ describe('CaseFilePage', () => {
     await user.click(within(panel).getByRole('button', { name: 'Record decision' }));
 
     await waitFor(() => expect(screen.getByTestId('outcome-badge')).toHaveTextContent('Approved with conditions'));
-    expect(screen.getByText(/Conditions: 12-month review/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Conditions: 12-month review/).length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId('decision-box')).getByText('Approved with conditions')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Reviewer decision' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Reset demo' }));

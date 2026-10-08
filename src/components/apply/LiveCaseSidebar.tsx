@@ -9,8 +9,8 @@ import { TONE_DOT } from '../../ui/tone';
 const STATUS_TONE: Record<LiveCheck['status'], Tone> = { pending: 'info', pass: 'good', review: 'warn', fail: 'bad' };
 const STATUS_TEXT: Record<LiveCheck['status'], string> = { pending: 'Pending', pass: 'Pass', review: 'Review', fail: 'Fail' };
 
-export function LiveCaseSidebar({ cf, stage }: { cf: CaseFile; stage: Stage }) {
-  const s = liveSnapshot(cf, stage);
+export function LiveCaseSidebar({ cf, stage, sub }: { cf: CaseFile; stage: Stage; sub?: string }) {
+  const s = liveSnapshot(cf, stage, sub);
   return (
     <aside aria-label="Live case file" className="lg:sticky lg:top-20 lg:self-start">
       <Panel className="p-5">

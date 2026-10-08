@@ -85,7 +85,7 @@ export default function ApplyPage() {
           <p className="py-16 text-center text-muted">Starting application…</p>
         )}
       </div>
-      <LiveCaseSidebar cf={cf} stage={stage} />
+      <LiveCaseSidebar cf={cf} stage={stage} sub={state.sub} />
     </main>
   );
 }

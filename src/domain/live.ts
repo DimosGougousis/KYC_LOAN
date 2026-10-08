@@ -7,18 +7,28 @@ export interface LiveCheck { label: string; status: 'pending' | CheckResult }
 export interface LiveSnapshot { events: AuditEvent[]; checks: LiveCheck[]; risk: { label: string; tone: Tone }; narrative: string }
 
 // What the live sidebar can honestly show while the applicant is on a given wizard stage.
-export function liveSnapshot(cf: CaseFile, stage: Stage): LiveSnapshot {
+// `sub` is the wizard sub-state; while verification is still checking (or waiting for a
+// re-upload) its results are not shown yet.
+export function liveSnapshot(cf: CaseFile, stage: Stage, sub?: string): LiveSnapshot {
   const idx = STAGES.indexOf(stage);
-  const visible = cf.audit.filter((e) => STAGES.indexOf(e.stage) <= idx);
+  const pendingVerification = stage === 'verification' && (sub === 'checking' || sub === 'issues');
+  const firstFailedDoc = cf.audit.find((e) => e.stage === 'verification' && e.text.includes('re-upload requested'));
+  const visible = cf.audit.filter((e) => {
+    if (STAGES.indexOf(e.stage) > idx) return false;
+    if (pendingVerification && e.stage === 'verification') return sub === 'issues' && e === firstFailedDoc;
+    return true;
+  });
   const events = [...visible].reverse().slice(0, 5);
-  const revealed = idx >= STAGES.indexOf('verification');
+  const revealed = idx >= STAGES.indexOf('verification') && !pendingVerification;
   const p = cf.persona;
   const d = cf.decision;
   const a = d.affordability;
   const checks: LiveCheck[] = p.checks.map((c) => ({ label: c.label, status: revealed ? c.result : 'pending' }));
 
   let risk: LiveSnapshot['risk'] = { label: 'Not assessed yet', tone: 'info' };
-  if (stage === 'decision') {
+  if (pendingVerification) {
+    risk = sub === 'issues' ? { label: 'Re-upload needed', tone: 'warn' } : { label: 'Checking…', tone: 'info' };
+  } else if (stage === 'decision') {
     risk = { label: OUTCOME_LABEL[d.outcome], tone: OUTCOME_TONE[d.outcome] };
   } else if (idx >= STAGES.indexOf('financial-details')) {
     const dti = a.dtiAfter;

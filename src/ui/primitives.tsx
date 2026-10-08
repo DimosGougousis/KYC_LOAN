@@ -9,8 +9,8 @@ export function Eyebrow({ children, className = '' }: { children: ReactNode; cla
   return <p className={`font-mono text-[11px] tracking-[0.12em] text-muted uppercase ${className}`}>{children}</p>;
 }
 
-export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-lg border border-line bg-surface ${className}`}>{children}</div>;
+export function Panel({ children, className = '', ...rest }: { children: ReactNode; className?: string; 'data-testid'?: string }) {
+  return <div className={`rounded-lg border border-line bg-surface ${className}`} {...rest}>{children}</div>;
 }
 
 export function PageHeader({ eyebrow, title, lede, aside }: { eyebrow: ReactNode; title: ReactNode; lede?: ReactNode; aside?: ReactNode }) {

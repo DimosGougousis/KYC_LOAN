@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { currentPersona } from '../data/personas';
 import { fmtEur, fmtRate } from '../domain/format';
 import { monthlyPayment } from '../domain/loan';
@@ -18,15 +19,12 @@ interface Props {
 
 export default function ProductSelection({ workflowId, onStateChange }: Props) {
   const persona = currentPersona();
-  const defaults = persona.form;
+  const { loanAmount, loanTerm } = persona.form;
   const apr = aprForScore(persona.creditScore);
   const [account, setAccount] = useState('current');
-  const [amount, setAmount] = useState(defaults.loanAmount);
-  const [term, setTerm] = useState(defaults.loanTerm);
-  const [purpose, setPurpose] = useState('home-improvement');
   const [saving, setSaving] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
@@ -36,7 +34,7 @@ export default function ProductSelection({ workflowId, onStateChange }: Props) {
         body: JSON.stringify({
           products: [
             { type: account, config: {} },
-            { type: 'personal-loan', config: { amount, term, purpose } },
+            { type: 'personal-loan', config: { amount: loanAmount, term: loanTerm, purpose: persona.purpose } },
           ],
         }),
       });
@@ -48,68 +46,52 @@ export default function ProductSelection({ workflowId, onStateChange }: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-8">
+    <form onSubmit={onSubmit} className="space-y-6">
       <div className="rounded-lg border border-line bg-surface p-6">
-        <h2 className="font-display text-lg font-semibold text-ink mb-4">Choose your account</h2>
-        <div className="space-y-3">
+        <h2 className="mb-4 font-display text-lg font-semibold text-ink">Choose your account</h2>
+        <div className="space-y-3" role="group" aria-label="Account">
           {accounts.map((a) => (
             <button
               key={a.id}
               type="button"
+              aria-pressed={account === a.id}
               onClick={() => setAccount(a.id)}
-              className={`w-full text-left border-2 rounded-lg p-4 transition-all flex justify-between items-start ${
+              className={`flex w-full items-start justify-between rounded-lg border-2 p-4 text-left transition-all ${
                 account === a.id ? 'border-accent bg-accent-soft' : 'border-line hover:border-accent/50'
               }`}
             >
               <div>
-                <p className="font-semibold text-sm text-ink">{a.label}</p>
-                <p className="text-xs text-muted mt-0.5">{a.description}</p>
+                <p className="text-sm font-semibold text-ink">{a.label}</p>
+                <p className="mt-0.5 text-xs text-muted">{a.description}</p>
               </div>
-              <span className="text-xs font-medium text-muted ml-4 shrink-0">{a.fee}</span>
+              <span className="ml-4 shrink-0 text-xs font-medium text-muted">{a.fee}</span>
             </button>
           ))}
         </div>
       </div>
 
       <div className="rounded-lg border border-line bg-surface p-6">
-        <h2 className="font-display text-lg font-semibold text-ink mb-4">Personal loan</h2>
-
-        <div className="mb-4">
-          <label className="text-sm font-medium text-ink block mb-2">Purpose</label>
-          <select value={purpose} onChange={(e) => setPurpose(e.target.value)} className="w-full border border-line rounded-md px-3 py-2 text-sm">
-            <option value="home-improvement">Home improvement</option>
-            <option value="vehicle">Vehicle purchase</option>
-            <option value="debt-consolidation">Debt consolidation</option>
-            <option value="education">Education</option>
-            <option value="other">Other</option>
-          </select>
+        <h2 className="font-display text-lg font-semibold text-ink">Personal loan</h2>
+        <p className="mt-1 text-sm text-muted">Pre-filled from {persona.form.firstName}'s application file; the decision is made on these figures.</p>
+        <dl className="mt-4 grid grid-cols-2 gap-y-2 rounded-lg border border-line bg-wash p-4 text-sm">
+          <dt className="text-muted">Purpose</dt><dd className="text-right">{persona.purpose}</dd>
+          <dt className="text-muted">Amount</dt><dd className="num text-right">{fmtEur(loanAmount)}</dd>
+          <dt className="text-muted">Term</dt><dd className="num text-right">{loanTerm} months</dd>
+          <dt className="text-muted">Rate</dt><dd className="num text-right">{fmtRate(apr)} APR</dd>
+        </dl>
+        <div className="mt-4 rounded-lg border border-line p-4 text-center">
+          <p className="text-xs text-muted">Estimated monthly payment</p>
+          <p className="num mt-1 text-2xl font-medium text-ink">{fmtEur(monthlyPayment(loanAmount, apr, Number(loanTerm)), { cents: true })}</p>
+          <p className="mt-1 text-xs text-muted">{fmtRate(apr)} APR for your credit profile · indicative only</p>
         </div>
-
-        <div className="space-y-6 p-4 bg-wash rounded-lg border border-line">
-          <div>
-            <label className="text-sm font-medium text-ink">
-              Loan amount: <span className="text-accent font-bold">€{amount.toLocaleString()}</span>
-            </label>
-            <input type="range" min={1000} max={50000} step={500} value={amount} onChange={(e) => setAmount(Number(e.target.value))} className="w-full mt-2 accent-[#0f6e6a]" />
-            <div className="flex justify-between text-xs text-muted mt-1"><span>€1,000</span><span>€50,000</span></div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-ink block mb-2">Repayment term</label>
-            <select value={term} onChange={(e) => setTerm(e.target.value)} className="w-full rounded-md border border-line px-3 py-2 text-sm">
-              {['12','24','36','48','60'].map((t) => <option key={t} value={t}>{t} months</option>)}
-            </select>
-          </div>
-
-          <div className="bg-surface rounded-lg border border-line p-4 text-center">
-            <p className="text-xs text-muted">Estimated monthly payment</p>
-            <p className="num mt-1 text-2xl font-medium text-ink">{fmtEur(monthlyPayment(amount, apr, Number(term)), { cents: true })}</p>
-            <p className="mt-1 text-xs text-muted">{fmtRate(apr)} APR for your credit profile · indicative only</p>
-          </div>
-        </div>
+        <p className="mt-4 text-sm text-muted">
+          Want to try a different amount or term? Use the{' '}
+          <Link to={`/case/${persona.id}#scenario-lab`} className="font-medium text-accent underline underline-offset-4">scenario lab</Link>{' '}
+          in the reviewer's case file.
+        </p>
       </div>
 
-      <button type="submit" disabled={saving} className="w-full bg-accent text-white font-semibold py-3 rounded-lg hover:bg-accent/90 disabled:opacity-60 transition-colors">
+      <button type="submit" disabled={saving} className="w-full rounded-lg bg-accent py-3 font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-60">
         {saving ? 'Saving…' : 'Continue'}
       </button>
     </form>
