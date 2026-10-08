@@ -1,4 +1,5 @@
 import type { Check, DocumentAttempt, PersonaId } from '../domain/types';
+import { readPersonaId } from '../lib/storage';
 
 export interface PersonaForm {
   firstName: string; lastName: string; dob: string; nationality: string; email: string; phone: string;
@@ -135,4 +136,8 @@ export const PERSONAS: Persona[] = [
 
 export function getPersona(id: string | undefined): Persona | undefined {
   return PERSONAS.find((p) => p.id === id);
+}
+
+export function currentPersona(): Persona {
+  return getPersona(readPersonaId()) ?? PERSONAS[0];
 }
