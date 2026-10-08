@@ -83,6 +83,7 @@ export function ScenarioLab({ persona }: { persona: Persona }) {
           {fired.length > 0 && <p className="text-sm text-muted">{fired.join('; ')}.</p>}
         </div>
         <KpiRow
+          cols="sm:grid-cols-3 2xl:grid-cols-5"
           kpis={[
             { label: 'Monthly payment', value: fmtEur(r.payment, { cents: true }), sub: `${fmtRate(valid.aprPct)} APR` },
             { label: 'DTI after loan', value: r.dtiAfter === null ? 'n/a' : fmtPct(r.dtiAfter), sub: 'Auto-approve ≤ 33%' },

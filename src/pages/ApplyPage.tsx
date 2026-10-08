@@ -68,7 +68,7 @@ export default function ApplyPage() {
           <div className="mt-4 h-[3px] w-full bg-line" aria-hidden>
             <div className="h-full bg-accent transition-all" style={{ width: `${((idx + 1) / STAGES.length) * 100}%` }} />
           </div>
-          <ol className="mt-2 hidden justify-between font-mono text-[11px] text-muted sm:flex">
+          <ol className="mt-2 hidden justify-between gap-3 font-mono text-[11px] text-muted xl:flex">
             {STAGES.map((s, i) => <li key={s} className={i <= idx ? 'text-accent' : ''}>{STAGE_LABEL[s]}</li>)}
           </ol>
         </header>

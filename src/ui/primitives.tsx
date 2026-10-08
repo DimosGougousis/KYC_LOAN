@@ -47,9 +47,9 @@ export function KpiTile({ kpi }: { kpi: Kpi }) {
   );
 }
 
-export function KpiRow({ kpis }: { kpis: Kpi[] }) {
+export function KpiRow({ kpis, cols = 'md:grid-cols-5' }: { kpis: Kpi[]; cols?: string }) {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+    <div className={`grid grid-cols-2 gap-3 ${cols}`}>
       {kpis.map((k) => <KpiTile key={k.label} kpi={k} />)}
     </div>
   );
