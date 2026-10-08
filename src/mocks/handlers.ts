@@ -1,224 +1,184 @@
 import { http, HttpResponse } from 'msw';
+import { buildCaseFile } from '../domain/caseFile';
+import { fmtEur, fmtRate } from '../domain/format';
+import { POLICY } from '../domain/policy';
+import { validateReview, type ReviewInput } from '../domain/review';
+import { isPersonaId } from '../domain/types';
+import { readPersonaId } from '../lib/storage';
+import { listReviews, recordReview, resetReviews } from './reviewStore';
 
-const workflowCache = new Map<string, any>();
+interface WfState { stage: string; sub: string }
+
+const workflowCache = new Map<string, WfState>();
 const verificationCounts = new Map<string, number>();
 const decisionCounts = new Map<string, number>();
+const resubmitted = new Set<string>();
 
-function getPersona(): string {
-  return localStorage.getItem('demoPersona') ?? 'happy-path';
+export function resetMockState(): void {
+  workflowCache.clear();
+  verificationCounts.clear();
+  decisionCounts.clear();
+  resubmitted.clear();
+  resetReviews();
 }
 
-// --- Workflow creation ---
+function currentCase() {
+  return buildCaseFile(readPersonaId())!;
+}
+
+function bump(counts: Map<string, number>, id: string): number {
+  const n = (counts.get(id) ?? 0) + 1;
+  counts.set(id, n);
+  return n;
+}
+
 export const handlers = [
-  http.post('/workflow', async () => {
-    const wfId = `wf-${Date.now()}`;
+  // --- Workflow ---
+  http.post('/workflow', () => {
+    const workflowId = `wf-${Date.now()}`;
     const state = { stage: 'personal-details', sub: 'editing' };
-    workflowCache.set(wfId, state);
-    return HttpResponse.json({
-      workflowId: wfId,
-      correlationId: wfId,
-      state,
-      nextStep: 'personal-details',
-    });
+    workflowCache.set(workflowId, state);
+    return HttpResponse.json({ workflowId, correlationId: workflowId, state, nextStep: 'personal-details' });
   }),
 
   http.get('/workflow/:id/state', ({ params }) => {
-    const { id } = params;
-    const state = workflowCache.get(id as string) ?? { stage: 'personal-details', sub: 'editing' };
-    return HttpResponse.json({
-      state,
-      checkpoint: null,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    });
+    const state = workflowCache.get(params.id as string) ?? { stage: 'personal-details', sub: 'editing' };
+    return HttpResponse.json({ state, checkpoint: null, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
   }),
 
-  // --- Personal Details ---
-  http.put('/workflow/:id/personal-details', async () => {
-    return HttpResponse.json({
+  // --- Personal details ---
+  http.put('/workflow/:id/personal-details', () =>
+    HttpResponse.json({
       state: { stage: 'verification', sub: 'checking' },
       documentAssessments: [
         { documentId: 'doc-001', type: 'passport', status: 'processing' },
         { documentId: 'doc-002', type: 'proof-of-address', status: 'processing' },
       ],
-    });
-  }),
+    })),
 
-  // --- Verification ---
+  // --- Verification: results come from the persona's documents and checks ---
   http.get('/workflow/:id/verification/status', ({ params }) => {
-    const { id } = params;
-    const persona = getPersona();
-    const count = (verificationCounts.get(id as string) ?? 0) + 1;
-    verificationCounts.set(id as string, count);
-
-    const checkingState = {
-      state: { stage: 'verification', sub: 'checking' },
-      checks: [
-        { type: 'document-quality', status: 'in-progress' as const, detail: null },
-        { type: 'identity-verification', status: 'waiting' as const, detail: null },
-        { type: 'compliance-screening', status: 'waiting' as const, detail: null },
-      ],
-    };
-
-    const passedState = {
-      state: { stage: 'verification', sub: 'complete' as const },
-      checks: [
-        { type: 'document-quality', status: 'passed' as const, detail: 'All documents clear' },
-        { type: 'identity-verification', status: 'passed' as const, detail: 'Identity confirmed' },
-        { type: 'compliance-screening', status: 'passed' as const, detail: 'No flags' },
-      ],
-    };
-
-    const isHappyOrSimilar = ['happy-path', 'borderline-credit', 'declined', 'counter-offer'].includes(persona);
-
-    if (isHappyOrSimilar) {
-      return HttpResponse.json(count < 3 ? checkingState : passedState);
+    const id = params.id as string;
+    const count = bump(verificationCounts, id);
+    if (count < 3) {
+      return HttpResponse.json({
+        state: { stage: 'verification', sub: 'checking' },
+        checks: [
+          { type: 'document-quality', status: 'in-progress', detail: null },
+          { type: 'identity-verification', status: 'waiting', detail: null },
+          { type: 'compliance-screening', status: 'waiting', detail: null },
+        ],
+      });
     }
 
-    if (persona === 'blurry-docs') {
-      if (count < 3) {
-        return HttpResponse.json({
-          state: { stage: 'verification', sub: 'issues' },
-          checks: [
-            { type: 'document-quality', status: 'failed' as const, detail: 'Low confidence scan — please re-upload a clearer image' },
-            { type: 'identity-verification', status: 'waiting' as const, detail: null },
-            { type: 'compliance-screening', status: 'waiting' as const, detail: null },
-          ],
-          documents: [{ documentId: 'doc-001', type: 'passport', status: 'needs-resubmit', confidence: 0.62, reason: 'Low quality scan' }],
-        });
-      }
-      return HttpResponse.json(passedState);
+    const cf = currentCase();
+    const failedDoc = cf.persona.documents.find((d) => d.quality < POLICY.docQualityMin);
+    if (failedDoc && !resubmitted.has(id)) {
+      return HttpResponse.json({
+        state: { stage: 'verification', sub: 'issues' },
+        checks: [
+          { type: 'document-quality', status: 'failed', detail: 'Low confidence scan — please re-upload a clearer image' },
+          { type: 'identity-verification', status: 'waiting', detail: null },
+          { type: 'compliance-screening', status: 'waiting', detail: null },
+        ],
+        documents: [{ documentId: 'doc-001', type: failedDoc.doc, status: 'needs-resubmit', confidence: failedDoc.quality, reason: 'Low quality scan' }],
+      });
     }
 
-    if (persona === 'watchlist-hit') {
-      if (count < 3) return HttpResponse.json(checkingState);
+    const review = cf.persona.checks.find((c) => c.result === 'review');
+    if (review) {
       return HttpResponse.json({
         state: { stage: 'verification', sub: 'manual-review' },
         checks: [
-          { type: 'document-quality', status: 'passed' as const, detail: 'Documents clear' },
-          { type: 'identity-verification', status: 'passed' as const, detail: 'Identity confirmed' },
-          { type: 'compliance-screening', status: 'pending-review' as const, detail: 'Manual review required' },
+          { type: 'document-quality', status: 'passed', detail: 'Documents clear' },
+          { type: 'identity-verification', status: 'passed', detail: 'Identity confirmed' },
+          { type: 'compliance-screening', status: 'pending-review', detail: `${review.label}: manual review required` },
         ],
-        reviewId: 'rev-alex-001',
+        reviewId: cf.persona.applicationId,
         estimatedWait: '2-4 hours',
       });
     }
 
-    return HttpResponse.json(passedState);
+    return HttpResponse.json({
+      state: { stage: 'verification', sub: 'complete' },
+      checks: [
+        { type: 'document-quality', status: 'passed', detail: 'All documents clear' },
+        { type: 'identity-verification', status: 'passed', detail: 'Identity confirmed' },
+        { type: 'compliance-screening', status: 'passed', detail: 'No flags' },
+      ],
+    });
   }),
 
   http.post('/workflow/:id/verification/resubmit', ({ params }) => {
-    verificationCounts.set(params.id as string, 3);
-    return HttpResponse.json({
-      documentAssessment: { documentId: 'doc-003', type: 'passport', status: 'processing', confidence: null },
-    });
+    resubmitted.add(params.id as string);
+    return HttpResponse.json({ documentAssessment: { documentId: 'doc-003', type: 'passport', status: 'processing', confidence: null } });
   }),
 
-  // --- Products ---
-  http.put('/workflow/:id/products', async () => {
-    return HttpResponse.json({
+  // --- Products / financials / submit ---
+  http.put('/workflow/:id/products', () =>
+    HttpResponse.json({
       state: { stage: 'financial-details', sub: 'editing' },
       productConfirmations: [{ type: 'current-account', status: 'reserved', accountNumber: null }],
-    });
-  }),
+    })),
 
-  // --- Financial Details ---
-  http.put('/workflow/:id/financial-details', async () => {
-    return HttpResponse.json({
-      state: { stage: 'review-submit', sub: 'reviewing' },
-    });
-  }),
+  http.put('/workflow/:id/financial-details', () => HttpResponse.json({ state: { stage: 'review-submit', sub: 'reviewing' } })),
 
-  // --- Submit ---
-  http.post('/workflow/:id/submit', async () => {
-    return HttpResponse.json({
-      state: { stage: 'decision', sub: 'processing' },
-      underwritingId: `uw-${Date.now()}`,
-    });
-  }),
+  http.post('/workflow/:id/submit', () =>
+    HttpResponse.json({ state: { stage: 'decision', sub: 'processing' }, underwritingId: `uw-${Date.now()}` })),
 
-  // --- Decision ---
+  // --- Decision: mapped from the policy engine's decision for the persona ---
   http.get('/workflow/:id/decision', ({ params }) => {
-    const { id } = params;
-    const persona = getPersona();
-    const count = (decisionCounts.get(id as string) ?? 0) + 1;
-    decisionCounts.set(id as string, count);
-
-    if (count < 3) {
-      return HttpResponse.json({
-        state: { stage: 'decision', sub: 'processing' },
-        decision: null,
-      });
+    if (bump(decisionCounts, params.id as string) < 3) {
+      return HttpResponse.json({ state: { stage: 'decision', sub: 'processing' }, decision: null });
     }
-
-    const approved = {
-      state: { stage: 'decision', sub: 'approved' },
-      decision: 'approved',
-      details: {
-        amount: 15000,
-        rate: 6.9,
-        termMonths: 36,
-        monthlyPayment: 463,
-        currency: 'EUR',
-        message: 'Congratulations! Your application has been approved.',
-      },
-    };
-
-    if (['happy-path', 'blurry-docs', 'watchlist-hit'].includes(persona)) {
-      return HttpResponse.json(approved);
+    const cf = currentCase();
+    const d = cf.decision;
+    switch (d.outcome) {
+      case 'approved':
+        return HttpResponse.json({
+          state: { stage: 'decision', sub: 'approved' },
+          decision: 'approved',
+          details: {
+            amount: d.requested.amount, rate: d.requested.aprPct, termMonths: d.requested.termMonths,
+            monthlyPayment: d.affordability.payment, currency: 'EUR',
+            message: 'Congratulations! Your application has been approved.',
+          },
+        });
+      case 'counter-offer':
+        return HttpResponse.json({
+          state: { stage: 'decision', sub: 'counter-offer' },
+          decision: 'counter-offer',
+          details: {
+            originalAmount: d.requested.amount, offeredAmount: d.offer!.amount, rate: d.offer!.aprPct,
+            termMonths: d.offer!.termMonths, monthlyPayment: d.offerAffordability!.payment, currency: 'EUR',
+            message: `We can offer you ${fmtEur(d.offer!.amount)} at ${fmtRate(d.offer!.aprPct)} over ${d.offer!.termMonths} months instead.`,
+          },
+        });
+      case 'declined':
+        return HttpResponse.json({
+          state: { stage: 'decision', sub: 'declined' },
+          decision: 'declined',
+          details: {
+            message: "We're unable to offer you a loan right now.",
+            reasons: d.rules.filter((r) => r.outcome === 'declined').map((r) => r.text),
+            canReapplyDate: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+          },
+        });
+      default:
+        return HttpResponse.json({
+          state: { stage: 'decision', sub: 'manual-review' },
+          decision: 'manual-review',
+          details: {
+            message: 'Your application needs a specialist review. We will notify you within 2 business days.',
+            reviewId: cf.persona.applicationId,
+            estimatedWait: '1-2 business days',
+          },
+        });
     }
-
-    if (persona === 'declined') {
-      return HttpResponse.json({
-        state: { stage: 'decision', sub: 'declined' },
-        decision: 'declined',
-        details: {
-          message: "We're unable to offer you a loan right now.",
-          reasons: [
-            'Credit score below minimum threshold',
-            'Debt-to-income ratio exceeds our current lending criteria',
-            'Insufficient credit history for the requested amount',
-          ],
-          canReapplyDate: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
-        },
-      });
-    }
-
-    if (persona === 'counter-offer') {
-      return HttpResponse.json({
-        state: { stage: 'decision', sub: 'counter-offer' },
-        decision: 'counter-offer',
-        details: {
-          originalAmount: 15000,
-          offeredAmount: 8000,
-          rate: 8.9,
-          termMonths: 24,
-          monthlyPayment: 367,
-          currency: 'EUR',
-          message: 'We can offer you €8,000 at 8.9% over 24 months instead.',
-        },
-      });
-    }
-
-    if (persona === 'borderline-credit') {
-      return HttpResponse.json({
-        state: { stage: 'decision', sub: 'manual-review' },
-        decision: 'manual-review',
-        details: {
-          message: 'Manual underwriter review required. We will notify you within 2 business days.',
-          reviewId: 'rev-sarah-001',
-          estimatedWait: '1-2 business days',
-        },
-      });
-    }
-
-    return HttpResponse.json({
-      state: { stage: 'decision', sub: 'processing' },
-      decision: null,
-    });
   }),
 
   http.post('/workflow/:id/decision/accept', async ({ request }) => {
-    const body = await request.json() as any;
+    const body = (await request.json()) as { accepted?: boolean };
     return HttpResponse.json({
       state: { stage: 'decision', sub: body.accepted ? 'approved' : 'declined' },
       accountDetails: body.accepted ? { accountNumber: '12345678', sortCode: '20-00-00' } : null,
@@ -226,97 +186,23 @@ export const handlers = [
     });
   }),
 
-  // --- HITL ---
-  http.get('/workflow/:id/review-queue', () => {
-    const persona = getPersona();
-    if (persona === 'watchlist-hit') {
-      return HttpResponse.json({
-        reviews: [{
-          reviewId: 'rev-alex-001',
-          type: 'compliance',
-          applicantName: 'Alex Petrov',
-          submittedAt: new Date().toISOString(),
-          slaDeadline: new Date(Date.now() + 14400000).toISOString(),
-          riskScore: 72,
-          flags: ['PEP match (0.87 similarity)', 'Eastern European national'],
-        }],
-      });
-    }
-    if (persona === 'borderline-credit') {
-      return HttpResponse.json({
-        reviews: [{
-          reviewId: 'rev-sarah-001',
-          type: 'underwriting',
-          applicantName: 'Sarah Miller',
-          submittedAt: new Date().toISOString(),
-          slaDeadline: new Date(Date.now() + 2880000).toISOString(),
-          creditScore: 621,
-          dti: 0.38,
-          requestedAmount: 15000,
-          modelDecision: 'borderline',
-          pd: 0.042,
-          lgd: 0.55,
-        }],
-      });
-    }
-    return HttpResponse.json({ reviews: [] });
+  // --- Reviewer decisions (HITL) ---
+  http.get('/case/:personaId/reviews', ({ params }) => {
+    const id = params.personaId as string;
+    return isPersonaId(id) ? HttpResponse.json(listReviews(id)) : HttpResponse.json({ error: 'Unknown persona' }, { status: 404 });
   }),
 
-  // --- HITL Review Details ---
-  http.get('/workflow/wf-current/review/:reviewId', ({ params }) => {
-    const { reviewId } = params;
-
-    if (reviewId === 'rev-alex-001') {
-      return HttpResponse.json({
-        reviewId,
-        type: 'compliance',
-        applicantName: 'Alex Petrov',
-        dob: '1980-02-20',
-        nationality: 'RU',
-        idDocuments: [{ type: 'passport', number: 'P-****7892', verified: true }],
-        watchlistMatches: [{
-          list: 'PEP',
-          similarity: 0.87,
-          matchName: 'Alexei Petrov',
-          jurisdiction: 'RU',
-          role: 'Former Regional Official',
-        }],
-        riskBreakdown: {
-          pep: { score: 72, label: 'PEP Screening', description: 'Name matched a Politically Exposed Person record at 87% confidence.', sourceName: 'World-Check PEP Database', sourceUrl: '/audit/pep-scan/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
-          sanctions: { score: 0, label: 'Sanctions Screening', description: 'No matches found against UN, EU, OFAC, or UK sanctions lists.', sourceName: 'Consolidated Sanctions List', sourceUrl: '/audit/sanctions-scan/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
-          adverseMedia: { score: 15, label: 'Adverse Media', description: 'One local news article from 2023 mentions the applicant.', sourceName: 'LexisNexis Adverse Media', sourceUrl: '/audit/media-scan/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
-          aml: { score: 30, label: 'AML Risk Factors', description: 'Recent deposits totalling €28,000 across 3 transactions.', sourceName: 'Transaction Monitoring System', sourceUrl: '/audit/aml-txn/alex-petrov-001', triggeredAt: '2026-06-26T10:42:00Z' },
-        },
-        slaDeadline: new Date(Date.now() + 14400000).toISOString(),
-      });
-    }
-
-    if (reviewId === 'rev-sarah-001') {
-      return HttpResponse.json({
-        reviewId,
-        type: 'underwriting',
-        applicantName: 'Sarah Miller',
-        loanRequest: { amount: 15000, term: 36, purpose: 'home-improvement' },
-        creditReport: { score: 621, bureau: 'Experian', factors: ['Short credit history', 'High utilisation on card ending 4521'] },
-        income: { annual: 42000, verified: true },
-        dti: 0.38,
-        monthlyDebt: 1300,
-        monthlyIncome: 3500,
-        modelOutput: { decision: 'borderline', pd: 0.042, lgd: 0.55, recommendation: 'Counter-offer or manual approve' },
-      });
-    }
-
-    return HttpResponse.json({ error: 'Review not found' }, { status: 404 });
+  http.post('/case/:personaId/review', async ({ params, request }) => {
+    const id = params.personaId as string;
+    if (!isPersonaId(id)) return HttpResponse.json({ error: 'Unknown persona' }, { status: 404 });
+    const input = (await request.json()) as ReviewInput;
+    const errors = validateReview(input);
+    if (Object.keys(errors).length) return HttpResponse.json({ errors }, { status: 400 });
+    return HttpResponse.json(recordReview(id, input));
   }),
 
-  // --- HITL Review Decision ---
-  http.post('/workflow/wf-current/review/:reviewId/decision', async ({ request }) => {
-    const body = await request.json() as any;
-    return HttpResponse.json({
-      reviewId: body.counterOffer ? 'counter-offer' : 'rev',
-      outcome: body.decision,
-      recordedAt: new Date().toISOString(),
-      workflowAdvanced: true,
-    });
+  http.post('/demo/reset', () => {
+    resetMockState();
+    return HttpResponse.json({ ok: true });
   }),
 ];
