@@ -25,7 +25,7 @@ Upgrade the existing KYC & Loan demo into a state-of-the-art demo, adopting more
 ### Success criteria
 1. Every page uses the new light visual system (Section 3); no blue SaaS header, no grey page background.
 2. Each persona has a Case File whose outcome is **derived** from its facts by the policy engine (not hard-coded) — enforced by a test.
-3. The scenario lab changes the policy outcome live, verified by tests: Sarah Miller (`borderline-credit`) is *referred* in the base case, *approved* under "Longer term (60 mo)" and *declined* under "Income −20%"; Lisa Wang's requested terms yield *counter-offer* and the counter-offer terms entered via Custom yield *approved*.
+3. The scenario lab changes the policy outcome live, verified by tests: Sarah Miller (`borderline-credit`) is *referred* in the base case, *approved* under "Longer term (60 mo)", and under "Income −20%" fails on DTI alone so the engine returns a *counter-offer* of €5,000 / 36 mo; Lisa Wang's requested terms yield *counter-offer* and the counter-offer terms entered via Custom yield *approved*.
 4. A viewer can move between Applicant and Reviewer lenses for the same persona in one click.
 5. `npm test`, `npm run build`, `npm run lint` pass; pages verified visually at desktop and 375px width with no horizontal page scroll.
 
@@ -111,7 +111,7 @@ All content derives from one `CaseFile` object produced by `buildCaseFile(person
 4. **Section 1 · Verification evidence** — table of checks: document quality, liveness, identity register, sanctions, PEP, adverse media, device/fraud. Columns: check, result, score, provider (mock), timestamp. Document cards with quality score. Document Resubmit shows the failed attempt and the passing re-upload as separate rows.
 5. **Section 2 · Affordability** — `StackedBar` of monthly net income split into rent, existing debt, other expenses, new loan payment, residual. Table: gross annual income, net monthly income, DTI before, DTI after, policy limits.
 6. **Section 3 · Scenario lab**
-   - Presets (`SegmentedControl`): Base case, Rate +2pp, Rate +4pp, Income −20%, Job loss (3 mo), Rent +15%, Longer term (60 mo), Custom.
+   - Presets (`SegmentedControl`): Base case, Rate +2pp, Rate +4pp, Income −20%, Job loss (3 mo), Living costs +15%, Longer term (60 mo), Custom.
    - Inputs (`NumberField`): rate %, term months, amount €, net-income change %, expenses change %, one-off shock month (income → 0 for N months, N = 0 disables).
    - Editing any input switches the preset to Custom.
    - Outputs: scenario outcome badge + fired rule text; KPIs (payment, DTI, total interest, min residual income); `LineChart` of remaining balance and monthly residual income; year-by-year amortization table (year, opening balance, interest, principal, closing balance); "Every scenario at a glance" table (preset → payment, DTI, outcome).
@@ -161,7 +161,7 @@ Precedence: decline > refer-compliance > refer-underwriting > approve.
 
 ### Persona consistency
 Each persona's facts in `data/personas.ts` must yield its target outcome (Section 2 table) through `evaluatePolicy`. A Vitest test asserts this for all six. Facts (income, debt repayments, rent, expenses, score) may be adjusted to satisfy the rules; the rules may not be special-cased per persona. Known required adjustments, checked for feasibility:
-- `borderline-credit` (Sarah Miller): base DTI after loan must lie in (36%, 45%] with score ≥ 640, so that "Income −20%" pushes it above 45% (decline) while "Longer term (60 mo)" brings it to ≤ 33% (approve). Example that works: gross €2,500/mo, existing repayments €500/mo, score 650 → €15,000 / 36 mo @ 8.9%.
+- `borderline-credit` (Sarah Miller): base DTI after loan must lie in (36%, 45%] with score ≥ 640, so that "Income −20%" pushes it above 45% (DTI-only decline → €5,000 counter-offer) while "Longer term (60 mo)" brings it to ≤ 33% (approve). Example that works: gross €2,500/mo, existing repayments €500/mo, score 650 → €15,000 / 36 mo @ 8.9%.
 - `counter-offer` (Lisa Wang): score 640–679 (→ 8.9%), requested €15,000 / 24 mo must give DTI > 45%, €8,000 / 24 mo must give DTI ≤ 33% and €9,000 / 24 mo must not. This needs existing repayments < €513/mo; example that works: gross €1,800/mo, existing repayments €200/mo.
 - `declined` (Tom Baker): score < 580.
 - `happy-path` (Maria Santos): score ≥ 720 so APR is 6.9%.
@@ -177,8 +177,8 @@ Each persona's facts in `data/personas.ts` must yield its target outcome (Sectio
 
 - `src/data/personas.ts` — single source of truth per persona: identity & contact (from `personaDefaults`), loan request, income/expenses, credit score, verification checks with scores/providers/timestamps, documents, BIAN-labelled audit events, story-step narrative (from `storyScripts`), persona colour index. `personaDefaults.ts` and `storyScripts.ts` are removed once their consumers migrate.
 - `DemoContext` — current persona + lens; persisted to `localStorage` inside try/catch with in-memory fallback. MSW handlers read the persona from the same storage key.
-- **MSW** keeps all existing wizard endpoints; responses add `caseEvents: AuditEvent[]`. New endpoints: `GET /case/:personaId`, `POST /case/:personaId/review`, `POST /demo/reset`.
-- `useLiveCase(workflowId)` accumulates `caseEvents` for the sidebar.
+- **MSW** keeps all existing wizard endpoints; the decision endpoint now derives its result from `buildCaseFile`. New endpoints: `GET /case/:personaId/reviews`, `POST /case/:personaId/review`, `POST /demo/reset`.
+- Every generated audit event carries the wizard `stage` it belongs to. `liveSnapshot(caseFile, stage)` (pure, in `domain/live.ts`) returns the events, check statuses, provisional risk and narrative visible at that stage; the sidebar renders it.
 - Scenario lab state is local `useState`; derived results via `useMemo`.
 
 ## 8. Applicant lens & Compare page
@@ -214,6 +214,13 @@ Each persona's facts in `data/personas.ts` must yield its target outcome (Sectio
 - **Component tests:** each primitive renders; selecting a scenario preset changes the outcome badge; reviewer decision appends an audit event and updates badge; lens toggle preserves persona; redirect routes resolve.
 - **Completion gate:** `npm test`, `npm run build`, `npm run lint` all pass; visual check of `/`, `/apply/*`, `/case/*` (all six), `/compare` at desktop and 375px in the built-in browser.
 
-## 11. Out of scope
+## 11. Amendments (2026-10-08, during planning)
+
+1. The scenario lab and "every scenario at a glance" use the full decision (`decide`, including the counter-offer search), so Sarah under "Income −20%" yields a €5,000 counter-offer rather than a plain decline (success criterion 3 updated).
+2. The live sidebar is derived from stage-tagged audit events (`liveSnapshot`) instead of `caseEvents` on every MSW response.
+3. Preset "Rent +15%" renamed "Living costs +15%" because the expenses input scales rent and other expenses together.
+4. `policy.ts` exposes `evaluatePolicy(input)` (rules only, never `counter-offer`) and `decide(facts, terms)` (affordability + rules + counter-offer search).
+
+## 12. Out of scope
 
 Real KYC/credit/open-banking providers, authentication, server persistence, dark mode, i18n, PDF export, new chart libraries.
