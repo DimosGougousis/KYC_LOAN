@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { getPersonaDefaults } from '../data/personaDefaults';
+import { currentPersona } from '../data/personas';
+import { apiUrl } from '../lib/api';
 
 const schema = z.object({
   employmentType: z.enum(['employed', 'self-employed', 'contractor', 'retired', 'unemployed']),
@@ -36,24 +37,24 @@ function FormField({ label, error, register, name, required, type = 'text', opti
   const id = `field-${name}`;
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-slate-700">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      <label htmlFor={id} className="text-sm font-medium text-ink">
+        {label}{required && <span className="text-bad ml-0.5">*</span>}
       </label>
       <input
         id={id}
         type={type}
         {...register(name, options)}
         className={`rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
-          error ? 'border-red-400 focus:ring-red-300' : 'border-slate-300 focus:ring-blue-300'
+          error ? 'border-bad focus:ring-bad/30' : 'border-line focus:ring-accent/30'
         }`}
       />
-      {error && <p className="text-xs text-red-600">{error.message}</p>}
+      {error && <p className="text-xs text-bad">{error.message}</p>}
     </div>
   );
 }
 
 export default function FinancialDetails({ workflowId, onStateChange }: Props) {
-  const defaults = getPersonaDefaults();
+  const defaults = currentPersona().form;
   const [submitting, setSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -71,7 +72,7 @@ export default function FinancialDetails({ workflowId, onStateChange }: Props) {
   async function onSubmit(data: FormData) {
     setSubmitting(true);
     try {
-      const res = await fetch(`/workflow/${workflowId}/financial-details`, {
+      const res = await fetch(apiUrl(`/workflow/${workflowId}/financial-details`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -85,11 +86,11 @@ export default function FinancialDetails({ workflowId, onStateChange }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <h2 className="text-base font-semibold text-slate-800">Employment</h2>
+      <div className="rounded-lg border border-line bg-surface p-6 space-y-4">
+        <h2 className="font-display text-lg font-semibold text-ink">Employment</h2>
         <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1">Employment Type</label>
-          <select {...register('employmentType')} className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+          <label className="text-sm font-medium text-ink block mb-1">Employment Type</label>
+          <select {...register('employmentType')} className="w-full border border-line rounded-md px-3 py-2 text-sm">
             <option value="employed">Employed (full-time or part-time)</option>
             <option value="self-employed">Self-employed</option>
             <option value="contractor">Contractor</option>
@@ -101,12 +102,12 @@ export default function FinancialDetails({ workflowId, onStateChange }: Props) {
         <FormField label="Job title (optional)" name="jobTitle" register={register} error={errors.jobTitle} />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <h2 className="text-base font-semibold text-slate-800">Income</h2>
+      <div className="rounded-lg border border-line bg-surface p-6 space-y-4">
+        <h2 className="font-display text-lg font-semibold text-ink">Income</h2>
         <FormField label="Annual income (€)" name="annualIncome" register={register} error={errors.annualIncome} required type="number" options={{ valueAsNumber: true }} />
         <div>
-          <label className="text-sm font-medium text-slate-700 block mb-1">Pay frequency</label>
-          <select {...register('payFrequency')} className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+          <label className="text-sm font-medium text-ink block mb-1">Pay frequency</label>
+          <select {...register('payFrequency')} className="w-full border border-line rounded-md px-3 py-2 text-sm">
             <option value="weekly">Weekly</option>
             <option value="fortnightly">Fortnightly</option>
             <option value="monthly">Monthly</option>
@@ -115,14 +116,14 @@ export default function FinancialDetails({ workflowId, onStateChange }: Props) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <h2 className="text-base font-semibold text-slate-800">Monthly outgoings</h2>
+      <div className="rounded-lg border border-line bg-surface p-6 space-y-4">
+        <h2 className="font-display text-lg font-semibold text-ink">Monthly outgoings</h2>
         <FormField label="Monthly rent or mortgage (€)" name="monthlyRent" register={register} error={errors.monthlyRent} required type="number" options={{ valueAsNumber: true }} />
         <FormField label="Existing debt repayments (€)" name="existingDebt" register={register} error={errors.existingDebt} required type="number" options={{ valueAsNumber: true }} />
         <FormField label="Other expenses (€)" name="otherExpenses" register={register} error={errors.otherExpenses} required type="number" options={{ valueAsNumber: true }} />
       </div>
 
-      <button type="submit" disabled={submitting} className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 disabled:opacity-60 transition-colors">
+      <button type="submit" disabled={submitting} className="w-full bg-accent text-white font-semibold py-3 rounded-lg hover:bg-accent/90 disabled:opacity-60 transition-colors">
         {submitting ? 'Saving…' : 'Continue'}
       </button>
     </form>

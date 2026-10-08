@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { getPersonaDefaults } from '../data/personaDefaults';
+import { currentPersona } from '../data/personas';
+import { apiUrl } from '../lib/api';
 
 interface Props {
   workflowId: string;
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
-  const defaults = getPersonaDefaults();
+  const defaults = currentPersona().form;
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -44,7 +45,7 @@ export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
     if (!agreed) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`/workflow/${workflowId}/submit`, {
+      const res = await fetch(apiUrl(`/workflow/${workflowId}/submit`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ termsAccepted: true, idempotencyKey: crypto.randomUUID() }),
@@ -58,19 +59,19 @@ export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-800 mb-6">Review your application</h2>
+      <div className="rounded-lg border border-line bg-surface p-6">
+        <h2 className="font-display text-xl font-semibold text-ink mb-6">Review your application</h2>
         <div className="space-y-6">
           {sections.map((s) => (
-            <div key={s.title} className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                <h3 className="text-sm font-semibold text-slate-700">{s.title}</h3>
+            <div key={s.title} className="border border-line rounded-lg overflow-hidden">
+              <div className="bg-wash px-4 py-3 border-b border-line">
+                <h3 className="text-sm font-semibold text-ink">{s.title}</h3>
               </div>
-              <dl className="divide-y divide-slate-100">
+              <dl className="divide-y divide-line">
                 {s.fields.map((f) => (
                   <div key={f.label} className="flex px-4 py-2.5 gap-4">
-                    <dt className="text-xs text-slate-500 w-40 shrink-0">{f.label}</dt>
-                    <dd className="text-sm text-slate-800 font-medium">{f.value}</dd>
+                    <dt className="text-xs text-muted w-40 shrink-0">{f.label}</dt>
+                    <dd className="text-sm text-ink font-medium">{f.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -79,19 +80,19 @@ export default function ReviewSubmit({ workflowId, onStateChange }: Props) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+      <div className="rounded-lg border border-line bg-surface p-6">
         <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-300" />
-          <span className="text-sm text-slate-700">
+          <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-line text-accent focus:ring-accent/30" />
+          <span className="text-sm text-ink">
             I confirm that all information provided is accurate and complete. I have read and agree to the{' '}
-            <a href="#" className="text-blue-600 underline">Terms and Conditions</a>,{' '}
-            <a href="#" className="text-blue-600 underline">Privacy Policy</a>, and{' '}
-            <a href="#" className="text-blue-600 underline">Loan Agreement</a>.
+            <a href="#" className="text-accent underline">Terms and Conditions</a>,{' '}
+            <a href="#" className="text-accent underline">Privacy Policy</a>, and{' '}
+            <a href="#" className="text-accent underline">Loan Agreement</a>.
           </span>
         </label>
       </div>
 
-      <button type="submit" disabled={!agreed || submitting} className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
+      <button type="submit" disabled={!agreed || submitting} className="w-full bg-accent text-white font-semibold py-3.5 rounded-lg hover:bg-accent/90 disabled:opacity-50 transition-colors">
         {submitting ? 'Submitting…' : 'Submit application'}
       </button>
     </form>

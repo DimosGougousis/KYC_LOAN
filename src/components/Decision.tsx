@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { fmtEur, fmtRate } from '../domain/format';
+import { apiUrl } from '../lib/api';
+import { useDemo } from '../lib/demo';
+import { StatusBadge } from '../ui/primitives';
 
-const terminalStates = new Set(['approved', 'declined', 'counter-offer']);
+const terminalStates = new Set(['approved', 'declined', 'counter-offer', 'manual-review']);
 
 interface Props {
   workflowId: string;
@@ -23,11 +28,27 @@ interface DecisionDetails {
   estimatedWait?: string;
 }
 
+function Terms({ rows }: { rows: [string, ReactNode][] }) {
+  return (
+    <dl className="grid grid-cols-2 gap-y-1.5 rounded-lg border border-line bg-surface p-4 text-sm">
+      {rows.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="text-muted">{k}</dt>
+          <dd className="num text-right">{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const button = 'rounded-md px-4 py-2.5 text-sm font-medium';
+
 export default function Decision({ workflowId }: Props) {
+  const { personaId } = useDemo();
   const { data } = useQuery({
     queryKey: ['decision', workflowId],
     queryFn: async () => {
-      const res = await fetch(`/workflow/${workflowId}/decision`);
+      const res = await fetch(apiUrl(`/workflow/${workflowId}/decision`));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
@@ -40,95 +61,93 @@ export default function Decision({ workflowId }: Props) {
 
   const sub = data?.state.sub ?? 'processing';
   const details = data?.details as DecisionDetails | undefined;
-  const [accepted, setAccepted] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState<'approved' | 'declined' | null>(null);
 
-  async function handleAccept() {
-    await fetch(`/workflow/${workflowId}/decision/accept`, {
+  async function respond(accept: boolean) {
+    await fetch(apiUrl(`/workflow/${workflowId}/decision/accept`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accepted: true }),
+      body: JSON.stringify({ accepted: accept }),
     });
-    setAccepted('approved');
+    setAccepted(accept ? 'approved' : 'declined');
   }
 
-  async function handleDecline() {
-    await fetch(`/workflow/${workflowId}/decision/accept`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accepted: false }),
-    });
-    setAccepted('declined');
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-800 mb-6">Application decision</h2>
-
-        {accepted ? (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-            <div className="text-4xl">{accepted === 'approved' ? '🎉' : '👋'}</div>
-            <h2 className="text-xl font-bold text-green-800 mt-2">
-              {accepted === 'approved' ? 'Offer accepted!' : 'Offer declined'}
-            </h2>
-            <p className="text-sm text-slate-500 mt-2">
-              {accepted === 'approved' ? 'Your account will be set up shortly.' : 'Thank you for considering our offer.'}
-            </p>
-          </div>
-        ) : sub === 'approved' && details ? (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center space-y-4">
-            <div className="text-4xl">🎉</div>
-            <h2 className="text-xl font-bold text-green-800">{details.message}</h2>
-            <div className="bg-white border border-green-100 rounded-lg p-4 space-y-1 text-sm">
-              <p><span className="text-slate-500">Amount:</span> <strong>€{details.amount?.toLocaleString()}</strong></p>
-              <p><span className="text-slate-500">Rate:</span> <strong>{details.rate}% APR</strong></p>
-              <p><span className="text-slate-500">Term:</span> <strong>{details.termMonths} months</strong></p>
-              <p><span className="text-slate-500">Monthly payment:</span> <strong>€{details.monthlyPayment}</strong></p>
-            </div>
-            <button onClick={handleAccept} className="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition-colors">Accept offer</button>
-          </div>
-        ) : sub === 'declined' && details ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 space-y-4">
-            <h2 className="text-xl font-bold text-red-800">Application outcome</h2>
-            <p className="text-slate-700">{details.message}</p>
-            {details.reasons && (
-              <ul className="list-disc list-inside space-y-1 text-sm text-slate-600">
-                {details.reasons.map((r) => <li key={r}>{r}</li>)}
-              </ul>
-            )}
-            {details.canReapplyDate && (
-              <p className="text-sm text-slate-500">You may reapply after: <strong>{details.canReapplyDate}</strong></p>
-            )}
-          </div>
-        ) : sub === 'counter-offer' && details ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 space-y-4">
-            <h2 className="text-xl font-bold text-blue-800">We have an offer for you</h2>
-            <p className="text-slate-700">{details.message}</p>
-            <div className="bg-white border border-blue-100 rounded-lg p-4 space-y-1 text-sm">
-              <p><span className="text-slate-500">Offered amount:</span> <strong>€{details.offeredAmount?.toLocaleString()}</strong></p>
-              <p><span className="text-slate-500">Rate:</span> <strong>{details.rate}% APR</strong></p>
-              <p><span className="text-slate-500">Term:</span> <strong>{details.termMonths} months</strong></p>
-              <p><span className="text-slate-500">Monthly payment:</span> <strong>€{details.monthlyPayment}</strong></p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handleAccept} className="flex-1 bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700">Accept</button>
-              <button onClick={handleDecline} className="flex-1 border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-lg hover:bg-slate-50">Decline</button>
-            </div>
-          </div>
-        ) : sub === 'manual-review' && details ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 space-y-4 text-center">
-            <div className="text-4xl">⏳</div>
-            <h2 className="text-xl font-bold text-amber-800">Under review</h2>
-            <p className="text-slate-700">{details.message}</p>
-            {details.estimatedWait && <p className="text-sm text-slate-500">Estimated wait: <strong>{details.estimatedWait}</strong></p>}
-          </div>
-        ) : (
-          <div className="text-center py-12 space-y-4">
-            <div className="inline-block w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-600">Processing your application…</p>
-          </div>
-        )}
+  let body: ReactNode;
+  if (accepted) {
+    body = (
+      <div className="space-y-2">
+        <StatusBadge tone={accepted === 'approved' ? 'good' : 'info'} size="lg">{accepted === 'approved' ? 'Offer accepted' : 'Offer declined'}</StatusBadge>
+        <p className="text-sm text-ink">{accepted === 'approved' ? 'Your account will be set up shortly.' : 'Thank you for considering our offer.'}</p>
       </div>
+    );
+  } else if (sub === 'approved' && details) {
+    body = (
+      <div className="space-y-4">
+        <StatusBadge tone="good" size="lg">Approved</StatusBadge>
+        <p className="text-ink">{details.message}</p>
+        <Terms rows={[
+          ['Amount', fmtEur(details.amount ?? 0)],
+          ['Rate', `${fmtRate(details.rate ?? 0)} APR`],
+          ['Term', `${details.termMonths} months`],
+          ['Monthly payment', fmtEur(details.monthlyPayment ?? 0, { cents: true })],
+        ]} />
+        <button type="button" onClick={() => respond(true)} className={`${button} w-full bg-accent text-white hover:bg-accent/90`}>Accept offer</button>
+      </div>
+    );
+  } else if (sub === 'counter-offer' && details) {
+    body = (
+      <div className="space-y-4">
+        <StatusBadge tone="warn" size="lg">Counter-offer</StatusBadge>
+        <p className="text-ink">{details.message}</p>
+        <Terms rows={[
+          ['Requested', <s key="r" className="text-muted">{fmtEur(details.originalAmount ?? 0)}</s>],
+          ['Offered', fmtEur(details.offeredAmount ?? 0)],
+          ['Rate', `${fmtRate(details.rate ?? 0)} APR`],
+          ['Term', `${details.termMonths} months`],
+          ['Monthly payment', fmtEur(details.monthlyPayment ?? 0, { cents: true })],
+        ]} />
+        <div className="flex gap-3">
+          <button type="button" onClick={() => respond(true)} className={`${button} flex-1 bg-accent text-white hover:bg-accent/90`}>Accept</button>
+          <button type="button" onClick={() => respond(false)} className={`${button} flex-1 border border-line text-ink hover:bg-wash`}>Decline</button>
+        </div>
+      </div>
+    );
+  } else if (sub === 'declined' && details) {
+    body = (
+      <div className="space-y-4">
+        <StatusBadge tone="bad" size="lg">Declined</StatusBadge>
+        <p className="text-ink">{details.message}</p>
+        {details.reasons && <ul className="list-disc space-y-1 pl-5 text-sm">{details.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
+        {details.canReapplyDate && <p className="text-sm text-muted">You may reapply after <span className="num text-ink">{details.canReapplyDate}</span>.</p>}
+      </div>
+    );
+  } else if (sub === 'manual-review' && details) {
+    body = (
+      <div className="space-y-3">
+        <StatusBadge tone="warn" size="lg">Under review</StatusBadge>
+        <p className="text-ink">{details.message}</p>
+        {details.estimatedWait && <p className="text-sm text-muted">Estimated wait: {details.estimatedWait}</p>}
+      </div>
+    );
+  } else {
+    body = (
+      <div className="flex items-center gap-3 py-8 text-muted">
+        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" aria-hidden />
+        Processing your application…
+      </div>
+    );
+  }
+
+  const done = terminalStates.has(sub);
+  return (
+    <div className="space-y-5 rounded-lg border border-line bg-surface p-6">
+      <h2 className="font-display text-xl font-semibold text-ink">Application decision</h2>
+      {body}
+      {done && (
+        <Link to={`/case/${personaId}`} className="inline-block text-sm font-medium text-accent underline underline-offset-4">
+          See how the bank decided →
+        </Link>
+      )}
     </div>
   );
 }
