@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { AffordabilitySection, AuditSection, EvidenceSection, PolicyFooter, QuestionsSection } from '../components/case/CaseSections';
 import { ReviewerPanel } from '../components/case/ReviewerPanel';
+import { ScenarioLab } from '../components/case/ScenarioLab';
 import { buildCaseFile, OUTCOME_LABEL, OUTCOME_TONE } from '../domain/caseFile';
 import { fmtEur, fmtTime } from '../domain/format';
 import { isFinalReview, REVIEW_LABEL, REVIEW_TONE, type ReviewRecord } from '../domain/review';
@@ -50,8 +51,13 @@ export default function CaseFilePage() {
       </Section>
       <EvidenceSection cf={cf} />
       <AffordabilitySection cf={cf} />
-      <Section id="scenario-lab" eyebrow="Section 3" title="Scenario lab: stress the loan">
-        <div data-testid="scenario-lab-slot" />
+      <Section
+        id="scenario-lab"
+        eyebrow="Section 3"
+        title="Scenario lab: stress the loan"
+        lede="A simple affordability model, not a forecast. Pick a preset or edit any number; the outcome, chart and tables rebuild."
+      >
+        <ScenarioLab key={p.id} persona={p} />
       </Section>
       <AuditSection cf={cf} extra={records.map((r) => r.event)}>
         {cf.needsReviewer && !decided && <ReviewerPanel personaId={p.id} role={role} />}
