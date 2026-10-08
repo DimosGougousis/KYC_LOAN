@@ -1,104 +1,94 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { isPersonaId } from '../domain/types';
+import { useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { OUTCOME_LABEL, OUTCOME_TONE } from '../domain/caseFile';
+import { fmtEur, fmtPct } from '../domain/format';
+import { allCases, portfolioKpis } from '../domain/portfolio';
 import { useDemo } from '../lib/demo';
-
-const personas: Record<string, { name: string; label: string; description: string }> = {
-  'happy-path': { name: 'Maria Santos', label: 'Happy Path', description: 'Clean approval — all docs pass, excellent credit, instant €15k at 6.9%' },
-  'blurry-docs': { name: 'James Chen', label: 'Document Resubmit', description: 'Low-quality ID scan prompts re-upload; approves after clean re-upload' },
-  'watchlist-hit': { name: 'Alex Petrov', label: 'Compliance HITL', description: 'PEP watchlist hit — manual compliance review required before proceeding' },
-  'borderline-credit': { name: 'Sarah Miller', label: 'Underwriter HITL', description: 'Borderline DTI — sent to manual underwriter who approves with conditions' },
-  'declined': { name: 'Tom Baker', label: 'Respectful Decline', description: 'Credit score below threshold — declined with 3 reasons + download letter' },
-  'counter-offer': { name: 'Lisa Wang', label: 'Counter-Offer', description: 'Requested €15k; approved for €8k at 8.9% / 24 mo — can accept or decline' },
-};
+import { DataTable } from '../ui/DataTable';
+import { Eyebrow, KpiRow, PageHeader, Panel, Section, StatusBadge } from '../ui/primitives';
 
 export default function Home() {
-  const [persona, setPersona] = useState('happy-path');
-  const [role, setRole] = useState('applicant');
-  const navigate = useNavigate();
+  const cases = useMemo(() => allCases(), []);
   const { setPersonaId } = useDemo();
-
-  function start() {
-    if (isPersonaId(persona)) setPersonaId(persona);
-    localStorage.setItem('demoRole', role);
-    if (role === 'compliance-officer') {
-      navigate('/hitl/compliance/rev-alex-001');
-    } else if (role === 'underwriter') {
-      navigate('/hitl/underwriting/rev-sarah-001');
-    } else {
-      navigate('/workflow/new');
-    }
-  }
+  const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-2xl overflow-hidden">
-        <div className="bg-blue-700 px-8 py-6">
-          <h1 className="text-white text-2xl font-bold">BIAN Onboarding — Demo</h1>
-          <p className="text-blue-200 text-sm mt-1">Select a persona to explore a specific journey</p>
+    <main className="mx-auto max-w-[1180px] px-4 pb-16 md:px-8">
+      <PageHeader
+        eyebrow="KYC & loan onboarding · demo · synthetic data"
+        title="Six applications, two ways to look at them"
+        lede="Walk through onboarding as the applicant, then open the reviewer's case file to see exactly why the bank decided what it did. Every figure is computed live from the application data by one shared policy engine."
+      />
+      <KpiRow kpis={portfolioKpis(cases)} />
+
+      <Section eyebrow="Step 1" title="Pick an application" lede="Apply as a persona to see the customer journey, or open the case file to see the reviewer's view.">
+        <DataTable caption="Demo applications">
+          <thead>
+            <tr>
+              <th className="sticky-col">Applicant</th><th>Scenario</th><th className="text-right">Request</th>
+              <th className="text-right">Score</th><th className="text-right">DTI after</th><th>Outcome</th><th>Explore</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cases.map((c) => {
+              const p = c.persona;
+              const dti = c.decision.affordability.dtiAfter;
+              return (
+                <tr key={p.id}>
+                  <td className="sticky-col">
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} aria-hidden />
+                      <span className="font-medium">{p.name}</span>
+                    </div>
+                    <span className="text-xs text-muted">{p.label}</span>
+                  </td>
+                  <td className="min-w-[220px] text-ink/85">{p.tagline}</td>
+                  <td className="num text-right whitespace-nowrap">{fmtEur(c.terms.amount)} · {c.terms.termMonths} mo</td>
+                  <td className="num text-right">{p.creditScore}</td>
+                  <td className="num text-right">{dti === null ? 'n/a' : fmtPct(dti)}</td>
+                  <td><StatusBadge tone={OUTCOME_TONE[c.decision.outcome]}>{OUTCOME_LABEL[c.decision.outcome]}</StatusBadge></td>
+                  <td>
+                    <div className="flex items-center gap-3 whitespace-nowrap">
+                      <button
+                        type="button"
+                        aria-label={`Apply as ${p.name}`}
+                        onClick={() => { setPersonaId(p.id); navigate('/apply/new'); }}
+                        className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90"
+                      >
+                        Apply
+                      </button>
+                      <Link to={`/case/${p.id}`} className="text-sm font-medium text-accent underline underline-offset-4">Open case file</Link>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
+      </Section>
+
+      <Section eyebrow="Two lenses" title="The same application, seen twice">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Panel className="p-5">
+            <Eyebrow>Applicant lens</Eyebrow>
+            <h3 className="mt-1 font-display text-xl font-semibold">What the customer does</h3>
+            <p className="mt-2 text-sm text-ink/85">
+              A six-step application with pre-filled persona data. A live case file beside the form shows checks resolving, the audit trail growing
+              and the provisional risk changing as the applicant moves through each step.
+            </p>
+            <Link to="/apply/new" className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-4">Start an application →</Link>
+          </Panel>
+          <Panel className="p-5">
+            <Eyebrow>Reviewer lens</Eyebrow>
+            <h3 className="mt-1 font-display text-xl font-semibold">Why the bank decided</h3>
+            <p className="mt-2 text-sm text-ink/85">
+              A case file in the style of an investment review: what stands out, verification evidence, an affordability breakdown, a scenario lab,
+              the audit trail and the questions a reviewer should ask. Referred cases end in a human decision.
+            </p>
+            <Link to="/compare" className="mt-3 inline-block text-sm font-medium text-accent underline underline-offset-4">Compare all six →</Link>
+          </Panel>
         </div>
-
-        <div className="p-8 space-y-8">
-          <fieldset>
-            <legend className="text-sm font-semibold text-slate-700 mb-3">Demo persona</legend>
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(personas).map(([key, p]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => { setPersona(key); setRole('applicant'); }}
-                  className={`text-left border-2 rounded-xl p-4 transition-all ${
-                    persona === key && role === 'applicant'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-slate-200 hover:border-blue-300'
-                  }`}
-                >
-                  <p className="font-semibold text-sm text-slate-800">{p.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{p.name}</p>
-                  <p className="text-xs text-slate-400 mt-1">{p.description}</p>
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend className="text-sm font-semibold text-slate-700 mb-3">View as role (HITL)</legend>
-            <div className="flex gap-3">
-              {['compliance-officer', 'underwriter'].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  className={`flex-1 border-2 rounded-xl p-3 text-sm font-medium transition-all ${
-                    role === r
-                      ? 'border-amber-500 bg-amber-50 text-amber-800'
-                      : 'border-slate-200 text-slate-600 hover:border-amber-300'
-                  }`}
-                >
-                  {r === 'compliance-officer' ? '🔍 Compliance Officer' : '📊 Underwriter'}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <button
-            type="button"
-            onClick={start}
-            className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl hover:bg-blue-700 transition-colors text-base"
-          >
-            Start demo
-          </button>
-
-          <div className="text-center">
-            <a
-              href="/dashboard"
-              className="text-sm text-slate-500 hover:text-blue-600 underline underline-offset-2 transition-colors"
-            >
-              View workflow story dashboard
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
+      </Section>
+    </main>
   );
 }
