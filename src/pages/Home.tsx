@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { applyPersonaDefaults } from '../data/personaDefaults';
+import { isPersonaId } from '../domain/types';
+import { useDemo } from '../lib/demo';
 
 const personas: Record<string, { name: string; label: string; description: string }> = {
   'happy-path': { name: 'Maria Santos', label: 'Happy Path', description: 'Clean approval — all docs pass, excellent credit, instant €15k at 6.9%' },
@@ -15,9 +16,10 @@ export default function Home() {
   const [persona, setPersona] = useState('happy-path');
   const [role, setRole] = useState('applicant');
   const navigate = useNavigate();
+  const { setPersonaId } = useDemo();
 
   function start() {
-    applyPersonaDefaults(persona);
+    if (isPersonaId(persona)) setPersonaId(persona);
     localStorage.setItem('demoRole', role);
     if (role === 'compliance-officer') {
       navigate('/hitl/compliance/rev-alex-001');

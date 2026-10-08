@@ -1,19 +1,32 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { DemoProvider } from './lib/DemoContext';
+import ApplyPage from './pages/ApplyPage';
+import CaseFilePage from './pages/CaseFilePage';
+import ComparePage from './pages/ComparePage';
 import Home from './pages/Home';
-import WorkflowPage from './pages/WorkflowPage';
-import HITLCompliance from './components/HITLCompliance';
-import HITLUnderwriter from './components/HITLUnderwriter';
-import Dashboard from './pages/Dashboard';
+import { TopBar } from './ui/TopBar';
+
+function WorkflowRedirect() {
+  const { workflowId } = useParams();
+  return <Navigate to={`/apply/${workflowId ?? 'new'}`} replace />;
+}
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/workflow/:workflowId" element={<WorkflowPage />} />
-      <Route path="/hitl/compliance/:reviewId" element={<HITLCompliance />} />
-      <Route path="/hitl/underwriting/:reviewId" element={<HITLUnderwriter />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <DemoProvider>
+      <TopBar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/apply/:workflowId" element={<ApplyPage />} />
+        <Route path="/case/:personaId" element={<CaseFilePage />} />
+        <Route path="/compare" element={<ComparePage />} />
+        {/* Links from the previous version of the demo */}
+        <Route path="/workflow/:workflowId" element={<WorkflowRedirect />} />
+        <Route path="/dashboard" element={<Navigate to="/case/happy-path" replace />} />
+        <Route path="/hitl/compliance/:id" element={<Navigate to="/case/watchlist-hit" replace />} />
+        <Route path="/hitl/underwriting/:id" element={<Navigate to="/case/borderline-credit" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </DemoProvider>
   );
 }
